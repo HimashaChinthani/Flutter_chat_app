@@ -38,6 +38,8 @@ dependencies:
   path: any
   qr_flutter: any
   mobile_scanner: any
+  firebase_core: ^3.10.0
+  firebase_database: ^11.3.4
 
 dev_dependencies:
   flutter_test:

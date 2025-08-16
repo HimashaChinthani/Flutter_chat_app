@@ -1,9 +1,45 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'theme.dart';
 import 'view/welcome_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  try {
+    await Firebase.initializeApp();
+    print('Firebase initialized successfully');
+    
+    // Test Firebase connection
+    await testFirebaseConnection();
+    
+  } catch (e) {
+    print('Error initializing Firebase: $e');
+  }
+  
   runApp(const ChatApp());
+}
+
+Future<void> testFirebaseConnection() async {
+  try {
+    final database = FirebaseDatabase.instance;
+    final ref = database.ref('test');
+    
+    // Try to write a test value
+    await ref.set({'timestamp': DateTime.now().millisecondsSinceEpoch, 'message': 'Firebase connection test'});
+    print('✅ Firebase write test successful');
+    
+    // Try to read the test value
+    final snapshot = await ref.get();
+    if (snapshot.exists) {
+      print('✅ Firebase read test successful: ${snapshot.value}');
+    } else {
+      print('❌ Firebase read test failed: no data');
+    }
+  } catch (e) {
+    print('❌ Firebase connection test failed: $e');
+  }
 }
 
 class ChatApp extends StatelessWidget {
