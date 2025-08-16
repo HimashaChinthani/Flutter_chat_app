@@ -19,11 +19,8 @@ class ChatScreen extends StatefulWidget {
   final String sessionId;
   final bool isHost;
 
-  const ChatScreen({
-    Key? key,
-    required this.sessionId,
-    required this.isHost,
-  }) : super(key: key);
+  const ChatScreen({Key? key, required this.sessionId, required this.isHost})
+    : super(key: key);
 
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -56,12 +53,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void addMessage(String text, bool isMe) {
     setState(() {
-      messages.add(Message(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        text: text,
-        isMe: isMe,
-        timestamp: DateTime.now(),
-      ));
+      messages.add(
+        Message(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          text: text,
+          isMe: isMe,
+          timestamp: DateTime.now(),
+        ),
+      );
     });
     scrollToBottom();
   }
@@ -71,12 +70,12 @@ class _ChatScreenState extends State<ChatScreen> {
       final messageText = messageController.text.trim();
       addMessage(messageText, true);
       messageController.clear();
-      
+
       // Show typing indicator
       setState(() {
         isTyping = true;
       });
-      
+
       // Simulate receiving a response
       Future.delayed(Duration(seconds: 1), () {
         setState(() {
@@ -91,7 +90,8 @@ class _ChatScreenState extends State<ChatScreen> {
             'Tell me more about that.',
             'Nice to hear from you!',
           ];
-          final randomResponse = responses[DateTime.now().millisecond % responses.length];
+          final randomResponse =
+              responses[DateTime.now().millisecond % responses.length];
           addMessage(randomResponse, false);
         }
       });
@@ -138,7 +138,11 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: AppTheme.primaryPurple, size: 20),
+                    Icon(
+                      Icons.info_outline,
+                      color: AppTheme.primaryPurple,
+                      size: 20,
+                    ),
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -155,10 +159,7 @@ class _ChatScreenState extends State<ChatScreen> {
               SizedBox(height: 12),
               Text(
                 'This will end the current chat session.',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: Colors.grey[600], fontSize: 14),
               ),
             ],
           ),
@@ -211,7 +212,7 @@ class _ChatScreenState extends State<ChatScreen> {
         duration: Duration(seconds: 2),
       ),
     );
-    
+
     // Navigate back to welcome screen
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
@@ -283,7 +284,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ],
             ),
           ),
-          
+
           // Messages List
           Expanded(
             child: ListView.builder(
@@ -299,7 +300,7 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             ),
           ),
-          
+
           // Message Input
           Container(
             padding: EdgeInsets.all(16),
@@ -450,20 +451,14 @@ class _TypingIndicatorState extends State<TypingIndicator>
           children: [
             Text(
               'Typing',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 14,
-              ),
+              style: TextStyle(color: Colors.grey[600], fontSize: 14),
             ),
             AnimatedBuilder(
               animation: _animationController,
               builder: (context, child) {
                 return Text(
                   '...',
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
                 );
               },
             ),

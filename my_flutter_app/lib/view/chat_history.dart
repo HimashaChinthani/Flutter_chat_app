@@ -61,7 +61,9 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
             ElevatedButton(
               onPressed: () {
                 setState(() {
-                  chatSessions.removeWhere((session) => session.id == sessionId);
+                  chatSessions.removeWhere(
+                    (session) => session.id == sessionId,
+                  );
                 });
                 Navigator.of(context).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -84,10 +86,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ChatScreen(
-          sessionId: session.id,
-          isHost: true,
-        ),
+        builder: (context) => ChatScreen(sessionId: session.id, isHost: true),
       ),
     );
   }
@@ -99,10 +98,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
         title: Text('Chat History'),
         backgroundColor: AppTheme.primaryPurple,
         actions: [
-          IconButton(
-            onPressed: loadChatHistory,
-            icon: Icon(Icons.refresh),
-          ),
+          IconButton(onPressed: loadChatHistory, icon: Icon(Icons.refresh)),
         ],
       ),
       body: chatSessions.isEmpty
@@ -118,18 +114,12 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                   SizedBox(height: 16),
                   Text(
                     'No chat history yet',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 18, color: Colors.grey[600]),
                   ),
                   SizedBox(height: 8),
                   Text(
                     'Start a conversation to see it here',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[500],
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey[500]),
                   ),
                 ],
               ),
@@ -139,7 +129,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
               itemCount: chatSessions.length,
               itemBuilder: (context, index) {
                 final session = chatSessions[index];
-              return ChatHistoryCard(
+                return ChatHistoryCard(
                   session: session,
                   onTap: () => viewChatSession(session),
                   onDelete: () => deleteChatSession(session.id),
@@ -170,10 +160,7 @@ class ChatHistoryCard extends StatelessWidget {
         contentPadding: EdgeInsets.all(16),
         leading: CircleAvatar(
           backgroundColor: AppTheme.primaryPurple,
-          child: Icon(
-            Icons.chat,
-            color: Colors.white,
-          ),
+          child: Icon(Icons.chat, color: Colors.white),
         ),
         title: Text(
           session.id,
@@ -199,20 +186,14 @@ class ChatHistoryCard extends StatelessWidget {
                 SizedBox(width: 4),
                 Text(
                   '${session.messageCount} messages',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[500],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                 ),
                 SizedBox(width: 16),
                 Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
                 SizedBox(width: 4),
                 Text(
                   '${session.startTime.day}/${session.startTime.month}/${session.startTime.year}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[500],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                 ),
               ],
             ),
