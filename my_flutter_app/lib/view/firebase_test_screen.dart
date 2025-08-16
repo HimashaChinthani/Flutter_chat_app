@@ -28,22 +28,22 @@ class _FirebaseTestScreenState extends State<FirebaseTestScreen> {
 
       final database = FirebaseDatabase.instance;
       final ref = database.ref('firebase_test');
-      
+
       // Test write
       setState(() {
         _status = 'Testing Firebase write...';
       });
-      
+
       await ref.set({
         'timestamp': DateTime.now().millisecondsSinceEpoch,
         'message': 'Firebase connection test from Flutter app',
-        'status': 'active'
+        'status': 'active',
       });
-      
+
       setState(() {
         _status = 'Write successful! Testing read...';
       });
-      
+
       // Test read
       final snapshot = await ref.get();
       if (snapshot.exists) {
@@ -69,33 +69,24 @@ class _FirebaseTestScreenState extends State<FirebaseTestScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Firebase Test'),
-      ),
+      appBar: AppBar(title: const Text('Firebase Test')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (_isLoading)
-              const CircularProgressIndicator(),
+            if (_isLoading) const CircularProgressIndicator(),
             const SizedBox(height: 20),
             Text(
               _status,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
             if (_testData.isNotEmpty) ...[
               const Text(
                 'Test Data Retrieved:',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
               Container(
@@ -106,10 +97,7 @@ class _FirebaseTestScreenState extends State<FirebaseTestScreen> {
                 ),
                 child: Text(
                   _testData,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                  ),
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
                 ),
               ),
             ],

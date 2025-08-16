@@ -6,18 +6,17 @@ import 'view/welcome_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   try {
     await Firebase.initializeApp();
     print('Firebase initialized successfully');
-    
+
     // Test Firebase connection
     await testFirebaseConnection();
-    
   } catch (e) {
     print('Error initializing Firebase: $e');
   }
-  
+
   runApp(const ChatApp());
 }
 
@@ -25,11 +24,14 @@ Future<void> testFirebaseConnection() async {
   try {
     final database = FirebaseDatabase.instance;
     final ref = database.ref('test');
-    
+
     // Try to write a test value
-    await ref.set({'timestamp': DateTime.now().millisecondsSinceEpoch, 'message': 'Firebase connection test'});
+    await ref.set({
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      'message': 'Firebase connection test',
+    });
     print('✅ Firebase write test successful');
-    
+
     // Try to read the test value
     final snapshot = await ref.get();
     if (snapshot.exists) {

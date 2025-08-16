@@ -15,10 +15,7 @@ class WelcomeScreen extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              AppTheme.primaryPurple,
-              AppTheme.lightPurple,
-            ],
+            colors: [AppTheme.primaryPurple, AppTheme.lightPurple],
           ),
         ),
         child: SafeArea(
@@ -135,7 +132,10 @@ class WelcomeScreen extends StatelessWidget {
                           ),
                         ],
                       ),
-                      padding: EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+                      padding: EdgeInsets.symmetric(
+                        vertical: 28,
+                        horizontal: 16,
+                      ),
                       child: Column(
                         children: [
                           CustomButton(
@@ -185,26 +185,33 @@ class WelcomeScreen extends StatelessWidget {
                             backgroundColor: AppTheme.accentPurple,
                             onPressed: () async {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('🔄 Testing Firebase connection...')),
+                                SnackBar(
+                                  content: Text(
+                                    '🔄 Testing Firebase connection...',
+                                  ),
+                                ),
                               );
-                              
+
                               try {
                                 final database = FirebaseDatabase.instance;
                                 final ref = database.ref('test_connection');
-                                
+
                                 // Test write
                                 await ref.set({
-                                  'timestamp': DateTime.now().millisecondsSinceEpoch,
+                                  'timestamp':
+                                      DateTime.now().millisecondsSinceEpoch,
                                   'message': 'Firebase test from mobile app',
-                                  'device': 'flutter_chat_app'
+                                  'device': 'flutter_chat_app',
                                 });
-                                
+
                                 // Test read
                                 final snapshot = await ref.get();
                                 if (snapshot.exists) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text('✅ Firebase Working! Data: ${snapshot.value}'),
+                                      content: Text(
+                                        '✅ Firebase Working! Data: ${snapshot.value}',
+                                      ),
                                       backgroundColor: Colors.green,
                                       duration: Duration(seconds: 5),
                                     ),
