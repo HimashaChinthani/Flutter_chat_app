@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../services/chat_service.dart';
 import '../services/database_service.dart';
-import '../models/message.dart' as model;
+import '../services/user_service.dart';
 
 class Message {
   final String id;
@@ -35,6 +35,37 @@ class _ChatScreenState extends State<ChatScreen> {
   List<Message> messages = [];
   bool isConnected = true;
   bool isTyping = false;
+
+  Future<void> _createTestUser() async {
+    try {
+      final user = await UserService.createUser(
+        name: 'Chat User ${DateTime.now().millisecondsSinceEpoch}',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('User created: ${user.id}')),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error creating user: $e'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -266,6 +297,11 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         backgroundColor: AppTheme.primaryPurple,
         actions: [
+          IconButton(
+            onPressed: _createTestUser,
+            icon: Icon(Icons.person_add),
+            tooltip: 'Create Test User',
+          ),
           IconButton(
             onPressed: showExitDialog,
             icon: Icon(Icons.exit_to_app),
