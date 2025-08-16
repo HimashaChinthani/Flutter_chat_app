@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
+import '../services/chat_service.dart';
+import '../services/database_service.dart';
+import '../models/message.dart' as model;
 
 class Message {
   final String id;
@@ -51,17 +54,29 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  void addMessage(String text, bool isMe) {
+  void addMessage(String text, bool isMe) async {
+    final message = Message(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      text: text,
+      isMe: isMe,
+      timestamp: DateTime.now(),
+    );
+
     setState(() {
-      messages.add(
-        Message(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          text: text,
-          isMe: isMe,
-          timestamp: DateTime.now(),
-        ),
-      );
+      messages.add(message);
     });
+
+    // Save to database if it's a real message (not system message)
+    if (text != 'Someone joined your chat session!' &&
+        text != 'Connected to chat session') {
+      await ChatService.sendMessage(
+        sessionId: widget.sessionId,
+        senderId: isMe ? 'me' : 'other',
+        receiverId: isMe ? 'other' : 'me',
+        text: text,
+      );
+    }
+
     scrollToBottom();
   }
 
@@ -196,9 +211,10 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  void saveAndExit() {
-    // Here you would save to SQLite database
-    // For now, we'll just show a success message
+  void saveAndExit() async {
+    // End the chat session in the database
+    await DatabaseService.endChatSession(widget.sessionId);
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
