@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_database/firebase_database.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FirebaseTestScreen extends StatefulWidget {
   const FirebaseTestScreen({Key? key}) : super(key: key);
@@ -26,8 +26,8 @@ class _FirebaseTestScreenState extends State<FirebaseTestScreen> {
         _isLoading = true;
       });
 
-      final database = FirebaseDatabase.instance;
-      final ref = database.ref('firebase_test');
+      final firestore = FirebaseFirestore.instance;
+      final ref = firestore.collection('AppDiagnostics').doc('firebase_test');
 
       // Test write
       setState(() {
@@ -36,7 +36,7 @@ class _FirebaseTestScreenState extends State<FirebaseTestScreen> {
 
       await ref.set({
         'timestamp': DateTime.now().millisecondsSinceEpoch,
-        'message': 'Firebase connection test from Flutter app',
+        'message': 'Firestore connection test from Flutter app',
         'status': 'active',
       });
 
@@ -48,8 +48,8 @@ class _FirebaseTestScreenState extends State<FirebaseTestScreen> {
       final snapshot = await ref.get();
       if (snapshot.exists) {
         setState(() {
-          _status = '✅ Firebase is working perfectly!';
-          _testData = snapshot.value.toString();
+          _status = '✅ Firestore is working perfectly!';
+          _testData = snapshot.data()!.toString();
           _isLoading = false;
         });
       } else {
@@ -60,7 +60,7 @@ class _FirebaseTestScreenState extends State<FirebaseTestScreen> {
       }
     } catch (e) {
       setState(() {
-        _status = '❌ Firebase test failed: $e';
+        _status = '❌ Firestore test failed: $e';
         _isLoading = false;
       });
     }

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_database/firebase_database.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'theme.dart';
 import 'view/welcome_screen.dart';
+import 'services/crud_services.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,6 +16,13 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     print('Firebase initialized successfully');
+
+    // Ensure we have an authenticated user (anonymous is fine for testing)
+    final auth = FirebaseAuth.instance;
+    if (auth.currentUser == null) {
+      await auth.signInAnonymously();
+      print('Signed in anonymously for Firestore access');
+    }
   } catch (e) {
     print('Error initializing Firebase: $e');
   }
@@ -23,25 +32,49 @@ void main() async {
 
 Future<void> testFirebaseConnection() async {
   try {
-    final database = FirebaseDatabase.instance;
-    final ref = database.ref('test');
+    final firestore = FirebaseFirestore.instance;
+    final ref = firestore.collection('AppDiagnostics').doc('main_test');
 
     // Try to write a test value
     await ref.set({
       'timestamp': DateTime.now().millisecondsSinceEpoch,
-      'message': 'Firebase connection test',
+      'message': 'Firestore connection test',
     });
-    print('✅ Firebase write test successful');
+    print('✅ Firestore write test successful');
 
     // Try to read the test value
     final snapshot = await ref.get();
     if (snapshot.exists) {
-      print('✅ Firebase read test successful: ${snapshot.value}');
+      print('✅ Firestore read test successful: ${snapshot.data()}');
     } else {
-      print('❌ Firebase read test failed: no data');
+      print('❌ Firestore read test failed: no data');
     }
   } catch (e) {
-    print('❌ Firebase connection test failed: $e');
+    print('❌ Firestore connection test failed: $e');
+  }
+}
+
+// UI-friendly tester that writes to 'users' with auto id and shows SnackBars
+Future<void> testFirebaseConnectionUI(BuildContext context) async {
+  final crudServices = CrudServices();
+  final id = await crudServices.insertUserAuto(
+    name: 'Test User ${DateTime.now().millisecondsSinceEpoch}',
+  );
+  if (!context.mounted) return;
+  if (id != null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('✅ Firebase OK! User inserted: $id'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('❌ Firebase connection failed!'),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
 }
 

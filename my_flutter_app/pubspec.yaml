@@ -36,6 +36,7 @@ dependencies:
   cloud_firestore: ^5.5.0
   firebase_database: ^11.3.4
   firebase_storage: ^12.4.10
+  firebase_auth: ^5.3.0
   mobile_scanner: any
   path: any
   qr_flutter: any

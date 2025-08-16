@@ -1,25 +1,36 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import '../models/user.dart';
 
 class UserService {
-  static final CollectionReference<Map<String, dynamic>> _usersRef =
+  // Use a getter to avoid stale instances across hot reloads
+  static CollectionReference<Map<String, dynamic>> get _usersRef =>
       FirebaseFirestore.instance.collection('Users');
 
   // Create a new user in Firebase
   static Future<User> createUser({required String name}) async {
     try {
-      // Generate a unique user ID via Firestore auto ID
-      final String userId = _usersRef.doc().id;
+      // Ensure there's an authenticated user (anonymous is fine)
+      final auth = fb_auth.FirebaseAuth.instance;
+      if (auth.currentUser == null) {
+        await auth.signInAnonymously();
+      }
+      final String userId = auth.currentUser!.uid;
 
       // Create user object
       final user = User(id: userId, name: name, createdAt: DateTime.now());
 
-      // Save user to Firestore under "Users" collection
-      await _usersRef.doc(userId).set(user.toMap());
+      // Save user to Firestore under "Users/<uid>" (aligns with secure rules)
+      await _usersRef.doc(userId).set(user.toMap(), SetOptions(merge: true));
 
       return user;
+    } on FirebaseException catch (e) {
+      throw Exception(
+        'Failed to create user: [${e.plugin}/${e.code}] ${e.message}',
+      );
     } catch (e) {
-      throw Exception('Failed to create user: $e');
+      final uid = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+      throw Exception('Failed to create user: $e (auth uid: ${uid ?? 'none'})');
     }
   }
 
