@@ -8,7 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:qr_chat_app/main.dart';
+import 'package:my_flutter_app/main.dart';
 
 void main() {
   testWidgets('ChatApp displays welcome screen with QR chat features', (

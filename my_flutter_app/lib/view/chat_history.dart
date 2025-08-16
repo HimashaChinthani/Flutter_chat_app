@@ -1,25 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
-import '../main.dart';
+import '../models/chat_session.dart';
 import 'chat_screen.dart';
-
-class ChatSession {
-  final String id;
-  final String sessionId;
-  final DateTime startTime;
-  final DateTime? endTime;
-  final int messageCount;
-  final String lastMessage;
-
-  ChatSession({
-    required this.id,
-    required this.sessionId,
-    required this.startTime,
-    this.endTime,
-    required this.messageCount,
-    required this.lastMessage,
-  });
-}
 
 class ChatHistoryScreen extends StatefulWidget {
   @override
@@ -40,24 +22,21 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     setState(() {
       chatSessions = [
         ChatSession(
-          id: '1',
-          sessionId: 'chat_123456',
+          id: 'chat_123456',
           startTime: DateTime.now().subtract(Duration(days: 1)),
           endTime: DateTime.now().subtract(Duration(days: 1, hours: -2)),
           messageCount: 25,
           lastMessage: 'Thanks for the great conversation!',
         ),
         ChatSession(
-          id: '2',
-          sessionId: 'chat_789012',
+          id: 'chat_789012',
           startTime: DateTime.now().subtract(Duration(days: 3)),
           endTime: DateTime.now().subtract(Duration(days: 3, hours: -1)),
           messageCount: 12,
           lastMessage: 'See you later!',
         ),
         ChatSession(
-          id: '3',
-          sessionId: 'chat_345678',
+          id: 'chat_345678',
           startTime: DateTime.now().subtract(Duration(days: 7)),
           endTime: DateTime.now().subtract(Duration(days: 7, hours: -3)),
           messageCount: 45,
@@ -106,7 +85,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => ChatScreen(
-          sessionId: session.sessionId,
+          sessionId: session.id,
           isHost: true,
         ),
       ),
@@ -160,7 +139,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
               itemCount: chatSessions.length,
               itemBuilder: (context, index) {
                 final session = chatSessions[index];
-                return ChatHistoryCard(
+              return ChatHistoryCard(
                   session: session,
                   onTap: () => viewChatSession(session),
                   onDelete: () => deleteChatSession(session.id),
@@ -197,7 +176,7 @@ class ChatHistoryCard extends StatelessWidget {
           ),
         ),
         title: Text(
-          session.sessionId,
+          session.id,
           style: TextStyle(
             fontWeight: FontWeight.bold,
             color: AppTheme.primaryPurple,
