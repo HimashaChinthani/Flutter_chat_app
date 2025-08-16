@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../theme.dart';
+import '../services/chat_service.dart';
 import 'chat_screen.dart';
 
 class QRScannerScreen extends StatefulWidget {
@@ -98,7 +99,10 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     );
   }
 
-  void startChat() {
+  void startChat() async {
+    // Create a new chat session in the database
+    await ChatService.startNewChatSession(scannedData);
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
