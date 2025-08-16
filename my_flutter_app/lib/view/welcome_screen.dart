@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_database/firebase_database.dart';
 import '../theme.dart';
 import '../main.dart';
+import '../services/user_service.dart';
 import 'qr_generator.dart';
 import 'qr_scanner.dart';
 import 'chat_history.dart';
@@ -193,41 +193,25 @@ class WelcomeScreen extends StatelessWidget {
                               );
 
                               try {
-                                final database = FirebaseDatabase.instance;
-                                final ref = database.ref('test_connection');
+                                // Call the user creation function
+                                final user = await UserService.createUser(
+                                  name:
+                                      'Test User ${DateTime.now().millisecondsSinceEpoch}',
+                                );
 
-                                // Test write
-                                await ref.set({
-                                  'timestamp':
-                                      DateTime.now().millisecondsSinceEpoch,
-                                  'message': 'Firebase test from mobile app',
-                                  'device': 'flutter_chat_app',
-                                });
-
-                                // Test read
-                                final snapshot = await ref.get();
-                                if (snapshot.exists) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        '✅ Firebase Working! Data: ${snapshot.value}',
-                                      ),
-                                      backgroundColor: Colors.green,
-                                      duration: Duration(seconds: 5),
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      '✅ User created successfully! ID: ${user.id}',
                                     ),
-                                  );
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('❌ Firebase Read Failed'),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
-                                }
+                                    backgroundColor: Colors.green,
+                                    duration: Duration(seconds: 5),
+                                  ),
+                                );
                               } catch (e) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text('❌ Firebase Error: $e'),
+                                    content: Text('❌ Error creating user: $e'),
                                     backgroundColor: Colors.red,
                                     duration: Duration(seconds: 5),
                                   ),

@@ -10,9 +10,6 @@ void main() async {
   try {
     await Firebase.initializeApp();
     print('Firebase initialized successfully');
-
-    // Test Firebase connection
-    await testFirebaseConnection();
   } catch (e) {
     print('Error initializing Firebase: $e');
   }
