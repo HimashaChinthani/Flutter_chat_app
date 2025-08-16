@@ -16,10 +16,19 @@ class User {
 
   // Convert from Map
   static User fromMap(Map<String, dynamic> map) {
+    DateTime created;
+    final raw = map['createdAt'];
+    if (raw is int) {
+      created = DateTime.fromMillisecondsSinceEpoch(raw);
+    } else if (raw is String) {
+      created = DateTime.tryParse(raw) ?? DateTime.now();
+    } else {
+      created = DateTime.now();
+    }
     return User(
       id: map['id'],
       name: map['name'],
-      createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt']),
+      createdAt: created,
     );
   }
 }

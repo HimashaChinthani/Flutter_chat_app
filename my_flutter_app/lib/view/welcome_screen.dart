@@ -1,12 +1,159 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme.dart';
 import '../main.dart';
-// import '../services/user_service.dart';
+import '../services/user_service.dart' as user_svc;
 import 'qr_generator.dart';
 import 'qr_scanner.dart';
 import 'chat_history.dart';
 
-class WelcomeScreen extends StatelessWidget {
+class WelcomeScreen extends StatefulWidget {
+  @override
+  State<WelcomeScreen> createState() => _WelcomeScreenState();
+}
+
+class _WelcomeScreenState extends State<WelcomeScreen> {
+  String? _displayName;
+  bool _prompted = false; // prevent duplicate dialogs
+
+  @override
+  void initState() {
+    super.initState();
+    // Defer UI work (dialogs) until after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initNameFlow());
+    // Fallback: if nothing happened within 1200ms, ensure we prompt
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      if (!mounted) return;
+      if (_displayName == null && !_prompted) {
+        _ensureNamePrompt();
+      }
+    });
+  }
+
+  Future<void> _initNameFlow() async {
+    try {
+      // 1) Check local storage first
+      final prefs = await SharedPreferences.getInstance();
+      final localName = prefs.getString('displayName');
+      if (localName != null && localName.trim().isNotEmpty) {
+        setState(() => _displayName = localName.trim());
+        return;
+      }
+
+      // 2) Ensure auth
+      final auth = fb_auth.FirebaseAuth.instance;
+      if (auth.currentUser == null) {
+        await auth.signInAnonymously();
+      }
+      final uid = auth.currentUser!.uid;
+
+      // 3) Try to load existing user profile from Firestore
+      final existing = await user_svc.UserService.getUser(uid);
+      if (!mounted) return;
+      if (existing != null && existing.name.trim().isNotEmpty) {
+        final name = existing.name.trim();
+        // Save to local for future fast loads
+        await prefs.setString('displayName', name);
+        setState(() => _displayName = name);
+        return;
+      }
+
+      // First time – prompt for name
+      await _ensureNamePrompt();
+    } catch (e) {
+      if (!mounted) return;
+      // Show a brief warning but still prompt for the name
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Profile check issue, please set your name. ($e)')),
+      );
+      await _ensureNamePrompt();
+    }
+  }
+
+  Future<void> _ensureNamePrompt() async {
+    if (_prompted || !mounted) return;
+    _prompted = true;
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      useRootNavigator: true,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Set your display name'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Enter the name others will see:'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                textInputAction: TextInputAction.done,
+                decoration: const InputDecoration(
+                  hintText: 'e.g. Alex',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(null),
+              child: const Text('Skip'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final value = controller.text.trim();
+                if (value.isEmpty) return;
+                Navigator.of(ctx).pop(value);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) return;
+    if (name == null || name.trim().isEmpty) {
+      // Skipped – keep prompting next time unless they proceed elsewhere
+      setState(() => _displayName = null);
+      return;
+    }
+
+    // Persist to local storage first, then Firestore
+    try {
+      final trimmed = name.trim();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('displayName', trimmed);
+      // Firestore write (not blocking the local save)
+      late final String savedName;
+      try {
+        final created = await user_svc.UserService.createUser(name: trimmed);
+        savedName = created.name;
+      } catch (e) {
+        // Keep local storage value; notify but don't fail the flow
+        savedName = trimmed;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Saved locally. Firestore sync pending: $e')),
+          );
+        }
+      }
+      if (!mounted) return;
+      setState(() => _displayName = savedName);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Welcome, $savedName!')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save name: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -103,6 +250,17 @@ class WelcomeScreen extends StatelessWidget {
                         ],
                       ),
                     ),
+                    if (_displayName != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Welcome, ${_displayName!}',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                     SizedBox(height: 12),
                     Text(
                       'Connect instantly with anyone through\nQR codes. Start chatting with strangers\nin seconds!',

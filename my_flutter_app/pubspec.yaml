@@ -41,6 +41,7 @@ dependencies:
   path: any
   qr_flutter: any
   sqflite: any
+  shared_preferences: ^2.3.2
 
 dev_dependencies:
 
