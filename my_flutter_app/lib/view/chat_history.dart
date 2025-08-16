@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../models/chat_session.dart';
+import '../services/database_service.dart';
 import 'chat_screen.dart';
 
 class ChatHistoryScreen extends StatefulWidget {
@@ -17,33 +18,33 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     loadChatHistory();
   }
 
-  void loadChatHistory() {
-    // Simulate loading chat history from SQLite
-    setState(() {
-      chatSessions = [
-        ChatSession(
-          id: 'chat_123456',
-          startTime: DateTime.now().subtract(Duration(days: 1)),
-          endTime: DateTime.now().subtract(Duration(days: 1, hours: -2)),
-          messageCount: 25,
-          lastMessage: 'Thanks for the great conversation!',
-        ),
-        ChatSession(
-          id: 'chat_789012',
-          startTime: DateTime.now().subtract(Duration(days: 3)),
-          endTime: DateTime.now().subtract(Duration(days: 3, hours: -1)),
-          messageCount: 12,
-          lastMessage: 'See you later!',
-        ),
-        ChatSession(
-          id: 'chat_345678',
-          startTime: DateTime.now().subtract(Duration(days: 7)),
-          endTime: DateTime.now().subtract(Duration(days: 7, hours: -3)),
-          messageCount: 45,
-          lastMessage: 'It was nice meeting you.',
-        ),
-      ];
-    });
+  void loadChatHistory() async {
+    try {
+      final sessions = await DatabaseService.getChatSessions();
+      setState(() {
+        chatSessions = sessions;
+      });
+    } catch (e) {
+      // If database fails, show sample data
+      setState(() {
+        chatSessions = [
+          ChatSession(
+            id: 'chat_123456',
+            startTime: DateTime.now().subtract(Duration(days: 1)),
+            endTime: DateTime.now().subtract(Duration(days: 1, hours: -2)),
+            messageCount: 25,
+            lastMessage: 'Thanks for the great conversation!',
+          ),
+          ChatSession(
+            id: 'chat_789012',
+            startTime: DateTime.now().subtract(Duration(days: 3)),
+            endTime: DateTime.now().subtract(Duration(days: 3, hours: -1)),
+            messageCount: 12,
+            lastMessage: 'See you later!',
+          ),
+        ];
+      });
+    }
   }
 
   void deleteChatSession(String sessionId) {
@@ -59,19 +60,30 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
               child: Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  chatSessions.removeWhere(
-                    (session) => session.id == sessionId,
+              onPressed: () async {
+                try {
+                  await DatabaseService.deleteChatSession(sessionId);
+                  setState(() {
+                    chatSessions.removeWhere(
+                      (session) => session.id == sessionId,
+                    );
+                  });
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Chat session deleted'),
+                      backgroundColor: Colors.red,
+                    ),
                   );
-                });
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Chat session deleted'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
+                } catch (e) {
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error deleting chat session'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               child: Text('Delete'),

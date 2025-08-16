@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../theme.dart';
 import '../main.dart';
+import '../services/chat_service.dart';
 import 'dart:math';
 
 class QRGeneratorScreen extends StatefulWidget {
@@ -24,11 +25,14 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
     sessionId = 'chat_${random.nextInt(999999).toString().padLeft(6, '0')}';
   }
 
-  void startWaitingForConnection() {
+  void startWaitingForConnection() async {
     setState(() {
       isWaitingForConnection = true;
     });
-    
+
+    // Create a new chat session in the database when starting to wait
+    await ChatService.startNewChatSession(sessionId);
+
     // Simulate waiting for connection
     Future.delayed(Duration(seconds: 3), () {
       if (mounted) {
@@ -66,7 +70,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                     ),
                   ),
                   SizedBox(height: 16),
-                  
+
                   // QR Code
                   Container(
                     padding: EdgeInsets.all(16),
@@ -83,7 +87,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                     ),
                   ),
                   SizedBox(height: 16),
-                  
+
                   Text(
                     'Session ID: $sessionId',
                     style: TextStyle(
@@ -96,7 +100,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
               ),
             ),
             SizedBox(height: 32),
-            
+
             if (!isWaitingForConnection) ...[
               CustomButton(
                 text: 'Start Waiting for Connection',
@@ -116,7 +120,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                 },
               ),
             ],
-            
+
             SizedBox(height: 16),
             CustomButton(
               text: 'Generate New QR Code',

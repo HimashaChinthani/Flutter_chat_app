@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../main.dart';
+import '../services/user_service.dart';
 import 'qr_generator.dart';
 import 'qr_scanner.dart';
 import 'chat_history.dart';
@@ -14,10 +15,7 @@ class WelcomeScreen extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              AppTheme.primaryPurple,
-              AppTheme.lightPurple,
-            ],
+            colors: [AppTheme.primaryPurple, AppTheme.lightPurple],
           ),
         ),
         child: SafeArea(
@@ -134,7 +132,10 @@ class WelcomeScreen extends StatelessWidget {
                           ),
                         ],
                       ),
-                      padding: EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+                      padding: EdgeInsets.symmetric(
+                        vertical: 28,
+                        horizontal: 16,
+                      ),
                       child: Column(
                         children: [
                           CustomButton(
@@ -175,6 +176,47 @@ class WelcomeScreen extends StatelessWidget {
                                   builder: (context) => ChatHistoryScreen(),
                                 ),
                               );
+                            },
+                          ),
+                          SizedBox(height: 20),
+                          CustomButton(
+                            text: '🔥 Test Firebase',
+                            icon: Icons.cloud_circle,
+                            backgroundColor: AppTheme.accentPurple,
+                            onPressed: () async {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    '🔄 Testing Firebase connection...',
+                                  ),
+                                ),
+                              );
+
+                              try {
+                                // Call the user creation function
+                                final user = await UserService.createUser(
+                                  name:
+                                      'Test User ${DateTime.now().millisecondsSinceEpoch}',
+                                );
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      '✅ User created successfully! ID: ${user.id}',
+                                    ),
+                                    backgroundColor: Colors.green,
+                                    duration: Duration(seconds: 5),
+                                  ),
+                                );
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('❌ Error creating user: $e'),
+                                    backgroundColor: Colors.red,
+                                    duration: Duration(seconds: 5),
+                                  ),
+                                );
+                              }
                             },
                           ),
                         ],
