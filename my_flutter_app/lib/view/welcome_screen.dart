@@ -7,7 +7,6 @@ import '../services/user_service.dart' as user_svc;
 import 'qr_generator.dart';
 import 'qr_scanner.dart';
 import 'chat_history.dart';
-import 'chat_screen.dart';
 
 class WelcomeScreen extends StatefulWidget {
   @override
@@ -409,25 +408,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => ChatHistoryScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          SizedBox(height: 20),
-                          CustomButton(
-                            text: 'Test Real-Time Chat',
-                            icon: Icons.chat_bubble,
-                            backgroundColor: Colors.green,
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => ChatScreen(
-                                    sessionId:
-                                        'test_${DateTime.now().millisecondsSinceEpoch}',
-                                    isHost: true,
-                                    peerName: 'Test Chat',
-                                  ),
                                 ),
                               );
                             },
