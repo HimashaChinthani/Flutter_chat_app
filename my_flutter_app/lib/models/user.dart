@@ -25,10 +25,6 @@ class User {
     } else {
       created = DateTime.now();
     }
-    return User(
-      id: map['id'],
-      name: map['name'],
-      createdAt: created,
-    );
+    return User(id: map['id'], name: map['name'], createdAt: created);
   }
 }

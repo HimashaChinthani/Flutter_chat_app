@@ -5,7 +5,7 @@ import '../models/user.dart';
 class UserService {
   // Use a getter to avoid stale instances across hot reloads
   static CollectionReference<Map<String, dynamic>> get _usersRef =>
-  FirebaseFirestore.instance.collection('users');
+      FirebaseFirestore.instance.collection('users');
 
   // Create a new user in Firebase
   static Future<User> createUser({required String name}) async {
