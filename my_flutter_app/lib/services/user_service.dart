@@ -8,14 +8,17 @@ class UserService {
       FirebaseFirestore.instance.collection('users');
 
   // Create a new user in Firebase
-  static Future<User> createUser({required String name}) async {
+  static Future<User> createUser({required String name, String? uid}) async {
     try {
-      // Ensure there's an authenticated user (anonymous is fine)
-      final auth = fb_auth.FirebaseAuth.instance;
-      if (auth.currentUser == null) {
-        await auth.signInAnonymously();
+      String userId = uid ?? '';
+      if (userId.isEmpty) {
+        // Ensure there's an authenticated user (anonymous is fine)
+        final auth = fb_auth.FirebaseAuth.instance;
+        if (auth.currentUser == null) {
+          await auth.signInAnonymously();
+        }
+        userId = auth.currentUser!.uid;
       }
-      final String userId = auth.currentUser!.uid;
 
       // Create user object
       final user = User(id: userId, name: name, createdAt: DateTime.now());

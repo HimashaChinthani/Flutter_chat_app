@@ -36,21 +36,55 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       // 1) Check local storage first
       final prefs = await SharedPreferences.getInstance();
       final localName = prefs.getString('displayName');
-      final alreadyPrompted = prefs.getBool('displayNamePrompted') ?? false;
       if (localName != null && localName.trim().isNotEmpty) {
         setState(() => _displayName = localName.trim());
+
+        // Ensure the name exists in Firestore under the saved UID if possible.
+        try {
+          final savedUid = prefs.getString('savedUid');
+          if (savedUid != null && savedUid.isNotEmpty) {
+            final existing = await user_svc.UserService.getUser(savedUid);
+            if (existing == null || existing.name.trim().isEmpty) {
+              await user_svc.UserService.createUser(
+                name: localName.trim(),
+                uid: savedUid,
+              );
+            }
+          }
+        } catch (_) {}
+
         return;
       }
 
-      // 2) Ensure auth
-      final auth = fb_auth.FirebaseAuth.instance;
-      if (auth.currentUser == null) {
-        await auth.signInAnonymously();
-      }
-      final uid = auth.currentUser!.uid;
+      // 2) Determine UID to use. Prefer savedUid to avoid new anonymous sign-ins
+      String? uidToUse;
+      try {
+        uidToUse = prefs.getString('savedUid');
+      } catch (_) {}
 
-      // 3) Try to load existing user profile from Firestore
-      final existing = await user_svc.UserService.getUser(uid);
+      final auth = fb_auth.FirebaseAuth.instance;
+      if (uidToUse == null) {
+        if (auth.currentUser != null) {
+          uidToUse = auth.currentUser!.uid;
+          try {
+            await prefs.setString('savedUid', uidToUse);
+          } catch (_) {}
+        } else {
+          // No saved UID and no active auth: create anon and persist it
+          final cred = await auth.signInAnonymously();
+          uidToUse = cred.user?.uid;
+          if (uidToUse != null) {
+            try {
+              await prefs.setString('savedUid', uidToUse);
+            } catch (_) {}
+          }
+        }
+      }
+
+      if (uidToUse == null) return;
+
+      // 3) Try to load existing user profile from Firestore for this UID
+      final existing = await user_svc.UserService.getUser(uidToUse);
       if (!mounted) return;
       if (existing != null && existing.name.trim().isNotEmpty) {
         final name = existing.name.trim();
@@ -60,8 +94,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         return;
       }
 
-      // If we've already shown the prompt previously, don't prompt again
-      if (alreadyPrompted) return;
+      // Check per-UID prompted flag so we don't repeatedly ask the same Firebase user
+      final promptedKey = 'displayNamePrompted_$uidToUse';
+      final alreadyPromptedForUid = prefs.getBool(promptedKey) ?? false;
+      if (alreadyPromptedForUid) return;
 
       // First time – prompt for name
       await _ensureNamePrompt();
@@ -81,8 +117,22 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     if (_prompted || !mounted) return;
     _prompted = true;
     final prefs = await SharedPreferences.getInstance();
-    // Persist that we've prompted so the dialog won't appear again
-    await prefs.setBool('displayNamePrompted', true);
+    // Determine current auth uid to store a per-UID prompted flag.
+    String? currentUid = prefs.getString('savedUid');
+    try {
+      final auth = fb_auth.FirebaseAuth.instance;
+      if (auth.currentUser != null) {
+        currentUid = auth.currentUser!.uid;
+      } else if (currentUid == null) {
+        final cred = await auth.signInAnonymously();
+        currentUid = cred.user?.uid;
+        if (currentUid != null) {
+          try {
+            await prefs.setString('savedUid', currentUid);
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
     final controller = TextEditingController();
     final name = await showDialog<String>(
       context: context,
@@ -136,11 +186,26 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       final trimmed = name.trim();
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('displayName', trimmed);
-      // Firestore write (not blocking the local save)
+      // Persist prompted flag for this UID so we don't ask again
+      final currentUid = prefs.getString('savedUid');
+      if (currentUid != null) {
+        try {
+          await prefs.setBool('displayNamePrompted_$currentUid', true);
+        } catch (_) {}
+      }
+      // Firestore write (not blocking the local save). Use savedUid when available
       late final String savedName;
       try {
-        final created = await user_svc.UserService.createUser(name: trimmed);
-        savedName = created.name;
+        if (currentUid != null) {
+          final created = await user_svc.UserService.createUser(
+            name: trimmed,
+            uid: currentUid,
+          );
+          savedName = created.name;
+        } else {
+          final created = await user_svc.UserService.createUser(name: trimmed);
+          savedName = created.name;
+        }
       } catch (e) {
         // Keep local storage value; notify but don't fail the flow
         savedName = trimmed;
