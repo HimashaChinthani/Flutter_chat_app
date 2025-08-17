@@ -191,59 +191,65 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            flex: 4,
-            child: Stack(
-              children: [
-                MobileScanner(controller: cameraController, onDetect: onDetect),
-                // Custom overlay
-                Container(
-                  decoration: ShapeDecoration(
-                    shape: QrScannerOverlayShape(
-                      borderColor: AppTheme.primaryPurple,
-                      borderRadius: 10,
-                      borderLength: 30,
-                      borderWidth: 10,
-                      cutOutSize: 250,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            flex: 1,
-            child: Container(
-              padding: EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              flex: 4,
+              child: Stack(
                 children: [
-                  Icon(
-                    Icons.qr_code_scanner,
-                    size: 48,
-                    color: AppTheme.primaryPurple,
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    'Point your camera at a QR code',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: AppTheme.primaryPurple,
-                      fontWeight: FontWeight.w500,
+                  MobileScanner(controller: cameraController, onDetect: onDetect),
+                  // Custom overlay
+                  Container(
+                    decoration: ShapeDecoration(
+                      shape: QrScannerOverlayShape(
+                        borderColor: AppTheme.primaryPurple,
+                        borderRadius: 10,
+                        borderLength: 30,
+                        borderWidth: 10,
+                        cutOutSize: 250,
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Make sure the QR code is clearly visible',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+            Expanded(
+              flex: 1,
+              child: SingleChildScrollView(
+                physics: AlwaysScrollableScrollPhysics(),
+                child: Container(
+                  padding: EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.qr_code_scanner,
+                        size: 48,
+                        color: AppTheme.primaryPurple,
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'Point your camera at a QR code',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: AppTheme.primaryPurple,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Make sure the QR code is clearly visible',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
