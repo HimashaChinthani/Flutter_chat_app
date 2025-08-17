@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'theme.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'view/welcome_screen.dart';
 import 'services/crud_services.dart';
 
@@ -17,11 +18,28 @@ void main() async {
     );
     print('Firebase initialized successfully');
 
-    // Ensure we have an authenticated user (anonymous is fine for testing)
+    // Ensure we have an authenticated user or reuse a previously saved UID.
+    // On web the auth session may not persist between visits; to avoid
+    // creating a new anonymous UID for the same browser/device we persist
+    // the UID locally under 'savedUid' and reuse it when present.
+    final prefs = await SharedPreferences.getInstance();
+    final savedUid = prefs.getString('savedUid');
     final auth = FirebaseAuth.instance;
     if (auth.currentUser == null) {
-      await auth.signInAnonymously();
-      print('Signed in anonymously for Firestore access');
+      if (savedUid != null && savedUid.isNotEmpty) {
+        // We have a saved UID from a previous run; do not sign in again to
+        // avoid creating a second anonymous account for the same device.
+        // Note: we still keep the saved UID in prefs and other flows will
+        // use it for Firestore reads/writes when auth.currentUser is null.
+        print('Found saved UID in prefs, skipping anon sign-in: $savedUid');
+      } else {
+        final cred = await auth.signInAnonymously();
+        final uid = cred.user?.uid;
+        if (uid != null) {
+          await prefs.setString('savedUid', uid);
+          print('Signed in anonymously and saved UID: $uid');
+        }
+      }
     }
   } catch (e) {
     print('Error initializing Firebase: $e');

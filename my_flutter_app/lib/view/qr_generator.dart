@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme.dart';
 import '../main.dart';
 
@@ -21,9 +22,32 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
 
   Future<void> _loadUserId() async {
     final auth = fb_auth.FirebaseAuth.instance;
+    // Prefer a saved UID from prefs to avoid creating a new anonymous
+    // account on the same device/browser.
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedUid = prefs.getString('savedUid');
+      if (savedUid != null && savedUid.isNotEmpty) {
+        if (!mounted) return;
+        setState(() => userId = savedUid);
+        return;
+      }
+    } catch (_) {}
+
     if (auth.currentUser == null) {
-      await auth.signInAnonymously();
+      final cred = await auth.signInAnonymously();
+      final uid = cred.user?.uid;
+      if (uid != null) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('savedUid', uid);
+        } catch (_) {}
+        if (!mounted) return;
+        setState(() => userId = uid);
+        return;
+      }
     }
+
     if (!mounted) return;
     setState(() => userId = auth.currentUser!.uid);
   }
