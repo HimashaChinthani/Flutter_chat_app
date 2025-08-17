@@ -16,6 +16,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   MobileScannerController cameraController = MobileScannerController();
   String scannedData = '';
   bool isScanned = false;
+  bool isTorchOn = false;
 
   @override
   void dispose() {
@@ -181,13 +182,23 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         title: Text('Scan QR Code'),
         backgroundColor: AppTheme.primaryPurple,
         actions: [
+          // Torch button using local state (some MobileScannerController versions
+          // don't expose a torch state notifier)
           IconButton(
-            onPressed: () => cameraController.toggleTorch(),
-            icon: const Icon(Icons.flash_on),
+            tooltip: isTorchOn ? 'Turn off light' : 'Turn on light',
+            onPressed: () {
+              cameraController.toggleTorch();
+              setState(() {
+                isTorchOn = !isTorchOn;
+              });
+            },
+            icon: Icon(isTorchOn ? Icons.flash_off : Icons.flash_on),
           ),
+          // Camera switch
           IconButton(
             onPressed: () => cameraController.switchCamera(),
-            icon: const Icon(Icons.switch_camera),
+            icon: const Icon(Icons.flip_camera_android),
+            tooltip: 'Switch camera',
           ),
         ],
       ),
@@ -198,7 +209,10 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               flex: 4,
               child: Stack(
                 children: [
-                  MobileScanner(controller: cameraController, onDetect: onDetect),
+                  MobileScanner(
+                    controller: cameraController,
+                    onDetect: onDetect,
+                  ),
                   // Custom overlay
                   Container(
                     decoration: ShapeDecoration(
