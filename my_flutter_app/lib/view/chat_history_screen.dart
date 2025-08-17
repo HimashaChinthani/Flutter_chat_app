@@ -16,7 +16,10 @@ class ChatHistoryScreen extends StatelessWidget {
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('chat_sessions')
-            .where('participants', arrayContains: FirebaseAuth.instance.currentUser?.uid)
+            .where(
+              'participants',
+              arrayContains: FirebaseAuth.instance.currentUser?.uid,
+            )
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -45,21 +48,21 @@ class ChatHistoryScreen extends StatelessWidget {
           chatSessions.sort((a, b) {
             final aData = a.data() as Map<String, dynamic>;
             final bData = b.data() as Map<String, dynamic>;
-            
+
             final aActivity = aData['lastActivity'] as Timestamp?;
             final bActivity = bData['lastActivity'] as Timestamp?;
-            
+
             if (aActivity != null && bActivity != null) {
               return bActivity.compareTo(aActivity); // Descending order
             }
-            
+
             final aCreated = aData['createdAt'] as Timestamp?;
             final bCreated = bData['createdAt'] as Timestamp?;
-            
+
             if (aCreated != null && bCreated != null) {
               return bCreated.compareTo(aCreated); // Descending order
             }
-            
+
             return 0;
           });
 
@@ -90,7 +93,7 @@ class ChatHistoryScreen extends StatelessWidget {
             itemBuilder: (context, index) {
               final session = chatSessions[index];
               final data = session.data() as Map<String, dynamic>;
-              
+
               return Card(
                 margin: EdgeInsets.only(bottom: 12),
                 child: ListTile(
@@ -121,8 +124,12 @@ class ChatHistoryScreen extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        data['isActive'] == true ? Icons.circle : Icons.circle_outlined,
-                        color: data['isActive'] == true ? Colors.green : Colors.grey,
+                        data['isActive'] == true
+                            ? Icons.circle
+                            : Icons.circle_outlined,
+                        color: data['isActive'] == true
+                            ? Colors.green
+                            : Colors.grey,
                         size: 12,
                       ),
                       SizedBox(height: 4),
@@ -139,7 +146,9 @@ class ChatHistoryScreen extends StatelessWidget {
                       MaterialPageRoute(
                         builder: (context) => ChatScreen(
                           sessionId: data['sessionId'],
-                          isHost: data['createdBy'] == FirebaseAuth.instance.currentUser?.uid,
+                          isHost:
+                              data['createdBy'] ==
+                              FirebaseAuth.instance.currentUser?.uid,
                           peerName: data['peerName'],
                         ),
                       ),
@@ -163,7 +172,9 @@ class ChatHistoryScreen extends StatelessWidget {
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('Delete Chat'),
-          content: Text('Are you sure you want to delete this chat? This action cannot be undone.'),
+          content: Text(
+            'Are you sure you want to delete this chat? This action cannot be undone.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),

@@ -423,7 +423,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => ChatScreen(
-                                    sessionId: 'test_${DateTime.now().millisecondsSinceEpoch}',
+                                    sessionId:
+                                        'test_${DateTime.now().millisecondsSinceEpoch}',
                                     isHost: true,
                                     peerName: 'Test Chat',
                                   ),

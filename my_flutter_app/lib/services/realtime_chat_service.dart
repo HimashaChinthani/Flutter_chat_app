@@ -21,10 +21,15 @@ class RealtimeChatService {
   }
 
   // Create or join a chat session
-  static Future<void> createOrJoinSession(String sessionId, {String? peerName}) async {
+  static Future<void> createOrJoinSession(
+    String sessionId, {
+    String? peerName,
+  }) async {
     await _ensureAuth();
-    
-    final sessionDoc = _firestore.collection(_sessionsCollection).doc(sessionId);
+
+    final sessionDoc = _firestore
+        .collection(_sessionsCollection)
+        .doc(sessionId);
     final sessionSnapshot = await sessionDoc.get();
 
     if (!sessionSnapshot.exists) {
@@ -56,7 +61,7 @@ class RealtimeChatService {
     String? receiverId,
   }) async {
     await _ensureAuth();
-    
+
     if (text.trim().isEmpty) return;
 
     final now = DateTime.now();
@@ -86,24 +91,26 @@ class RealtimeChatService {
         .where('sessionId', isEqualTo: sessionId)
         .snapshots()
         .map((snapshot) {
-      final messages = <ChatMessage>[];
-      
-      for (final doc in snapshot.docs) {
-        final data = doc.data();
-        messages.add(ChatMessage.fromFirestore(data, doc.id, currentUserId ?? ''));
-      }
-      
-      // Sort messages by timestamp on the client side
-      messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-      
-      return messages;
-    });
+          final messages = <ChatMessage>[];
+
+          for (final doc in snapshot.docs) {
+            final data = doc.data();
+            messages.add(
+              ChatMessage.fromFirestore(data, doc.id, currentUserId ?? ''),
+            );
+          }
+
+          // Sort messages by timestamp on the client side
+          messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+          return messages;
+        });
   }
 
   // End chat session
   static Future<void> endSession(String sessionId) async {
     await _ensureAuth();
-    
+
     await _firestore.collection(_sessionsCollection).doc(sessionId).update({
       'isActive': false,
       'endedAt': FieldValue.serverTimestamp(),
@@ -114,7 +121,7 @@ class RealtimeChatService {
   // Delete a chat session and its messages
   static Future<void> deleteSession(String sessionId) async {
     await _ensureAuth();
-    
+
     // Delete all messages in the session
     final messagesQuery = await _firestore
         .collection(_messagesCollection)
@@ -128,13 +135,16 @@ class RealtimeChatService {
 
     // Delete the session
     batch.delete(_firestore.collection(_sessionsCollection).doc(sessionId));
-    
+
     await batch.commit();
   }
 
   // Get chat session info
   static Future<Map<String, dynamic>?> getSessionInfo(String sessionId) async {
-    final doc = await _firestore.collection(_sessionsCollection).doc(sessionId).get();
+    final doc = await _firestore
+        .collection(_sessionsCollection)
+        .doc(sessionId)
+        .get();
     return doc.exists ? doc.data() : null;
   }
 

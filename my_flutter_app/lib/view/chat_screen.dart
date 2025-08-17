@@ -39,9 +39,9 @@ class _ChatScreenState extends State<ChatScreen> {
       if (FirebaseAuth.instance.currentUser == null) {
         await FirebaseAuth.instance.signInAnonymously();
       }
-      
+
       currentUserId = FirebaseAuth.instance.currentUser?.uid;
-      
+
       // Create or join the chat session
       await RealtimeChatService.createOrJoinSession(
         widget.sessionId,
@@ -56,7 +56,6 @@ class _ChatScreenState extends State<ChatScreen> {
       Future.delayed(Duration(milliseconds: 500), () {
         _scrollToBottom();
       });
-
     } catch (e) {
       setState(() {
         isLoading = false;
@@ -77,7 +76,7 @@ class _ChatScreenState extends State<ChatScreen> {
         sessionId: widget.sessionId,
         text: messageText,
       );
-      
+
       // Auto-scroll to bottom after sending
       Future.delayed(Duration(milliseconds: 100), () {
         _scrollToBottom();
@@ -168,10 +167,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 Navigator.of(context).pop();
                 _exitWithoutSaving();
               },
-              child: Text(
-                'Delete & Exit',
-                style: TextStyle(color: Colors.red),
-              ),
+              child: Text('Delete & Exit', style: TextStyle(color: Colors.red)),
             ),
             ElevatedButton(
               onPressed: () {
@@ -192,7 +188,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _saveAndExit() async {
     try {
       await RealtimeChatService.endSession(widget.sessionId);
-      
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -210,14 +206,14 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       _showError('Error ending session: $e');
     }
-    
+
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   Future<void> _exitWithoutSaving() async {
     try {
       await RealtimeChatService.deleteSession(widget.sessionId);
-      
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -235,7 +231,7 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       _showError('Error deleting session: $e');
     }
-    
+
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
@@ -326,8 +322,10 @@ class _ChatScreenState extends State<ChatScreen> {
                         Icon(Icons.error, size: 64, color: Colors.red),
                         SizedBox(height: 16),
                         Text('Error loading messages'),
-                        Text(snapshot.error.toString(), 
-                             style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        Text(
+                          snapshot.error.toString(),
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
                         SizedBox(height: 16),
                         ElevatedButton(
                           onPressed: () => setState(() {}),
@@ -340,26 +338,28 @@ class _ChatScreenState extends State<ChatScreen> {
 
                 if (!snapshot.hasData) {
                   return Center(
-                    child: CircularProgressIndicator(color: AppTheme.primaryPurple),
+                    child: CircularProgressIndicator(
+                      color: AppTheme.primaryPurple,
+                    ),
                   );
                 }
 
                 final messages = snapshot.data!;
-                
+
                 if (messages.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.chat_bubble_outline, 
-                             size: 64, color: Colors.grey),
+                        Icon(
+                          Icons.chat_bubble_outline,
+                          size: 64,
+                          color: Colors.grey,
+                        ),
                         SizedBox(height: 16),
                         Text(
                           'No messages yet',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey,
-                          ),
+                          style: TextStyle(fontSize: 18, color: Colors.grey),
                         ),
                         SizedBox(height: 8),
                         Text(
@@ -436,8 +436,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 SizedBox(width: 8),
                 FloatingActionButton(
-                  onPressed: messageController.text.trim().isNotEmpty 
-                      ? _sendMessage 
+                  onPressed: messageController.text.trim().isNotEmpty
+                      ? _sendMessage
                       : null,
                   backgroundColor: messageController.text.trim().isNotEmpty
                       ? AppTheme.primaryPurple
