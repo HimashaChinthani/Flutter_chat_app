@@ -36,6 +36,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       // 1) Check local storage first
       final prefs = await SharedPreferences.getInstance();
       final localName = prefs.getString('displayName');
+      final alreadyPrompted = prefs.getBool('displayNamePrompted') ?? false;
       if (localName != null && localName.trim().isNotEmpty) {
         setState(() => _displayName = localName.trim());
         return;
@@ -59,13 +60,18 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         return;
       }
 
+      // If we've already shown the prompt previously, don't prompt again
+      if (alreadyPrompted) return;
+
       // First time – prompt for name
       await _ensureNamePrompt();
     } catch (e) {
       if (!mounted) return;
       // Show a brief warning but still prompt for the name
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Profile check issue, please set your name. ($e)')),
+        SnackBar(
+          content: Text('Profile check issue, please set your name. ($e)'),
+        ),
       );
       await _ensureNamePrompt();
     }
@@ -74,6 +80,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   Future<void> _ensureNamePrompt() async {
     if (_prompted || !mounted) return;
     _prompted = true;
+    final prefs = await SharedPreferences.getInstance();
+    // Persist that we've prompted so the dialog won't appear again
+    await prefs.setBool('displayNamePrompted', true);
     final controller = TextEditingController();
     final name = await showDialog<String>(
       context: context,
@@ -117,7 +126,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
     if (!mounted) return;
     if (name == null || name.trim().isEmpty) {
-      // Skipped – keep prompting next time unless they proceed elsewhere
+      // User skipped; we marked as prompted so we won't show again
       setState(() => _displayName = null);
       return;
     }
@@ -137,20 +146,22 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         savedName = trimmed;
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Saved locally. Firestore sync pending: $e')),
+            SnackBar(
+              content: Text('Saved locally. Firestore sync pending: $e'),
+            ),
           );
         }
       }
       if (!mounted) return;
       setState(() => _displayName = savedName);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Welcome, $savedName!')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Welcome, $savedName!')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save name: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to save name: $e')));
     }
   }
 

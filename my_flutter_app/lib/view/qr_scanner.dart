@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../theme.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
+import 'dart:convert';
 import '../services/chat_service.dart';
 import 'chat_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class QRScannerScreen extends StatefulWidget {
   @override
@@ -48,7 +51,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               Icon(Icons.qr_code_2, size: 48, color: AppTheme.primaryPurple),
               SizedBox(height: 16),
               Text(
-                'Session ID:',
+                'Scanned QR:',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 8),
@@ -100,15 +103,71 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   }
 
   void startChat() async {
-    // Create a new chat session in the database
-    await ChatService.startNewChatSession(scannedData);
+    // Expect a URL like https://chatterqr.app/u/<uid>
+    final uri = Uri.tryParse(scannedData);
+    if (uri == null ||
+        !(uri.scheme == 'https' || uri.scheme == 'http') ||
+        uri.pathSegments.length < 2 ||
+        uri.pathSegments.first != 'u') {
+      _showInvalidQR();
+      return;
+    }
+
+    final otherUid = uri.pathSegments[1];
+    if (otherUid.isEmpty) {
+      _showInvalidQR();
+      return;
+    }
+
+    // Ensure current user is authenticated
+    final auth = fb_auth.FirebaseAuth.instance;
+    if (auth.currentUser == null) {
+      await auth.signInAnonymously();
+    }
+    final myUid = auth.currentUser!.uid;
+
+    // Fetch other user's display name from Firestore 'users'
+    String otherName = 'Friend';
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(otherUid)
+          .get();
+      if (snap.exists) {
+        final data = snap.data();
+        final n = (data?['name'] as String?)?.trim();
+        if (n != null && n.isNotEmpty) otherName = n;
+      }
+    } catch (_) {}
+
+    // Deterministic, order-independent session id from both UIDs
+    final a = myUid.compareTo(otherUid) <= 0 ? myUid : otherUid;
+    final b = myUid.compareTo(otherUid) <= 0 ? otherUid : myUid;
+    final raw = '$a|$b';
+    final sessionId = base64Url.encode(utf8.encode(raw));
+
+    await ChatService.startNewChatSession(sessionId);
 
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => ChatScreen(sessionId: scannedData, isHost: false),
+        builder: (context) => ChatScreen(
+          sessionId: sessionId,
+          isHost: false,
+          peerName: otherName,
+        ),
       ),
     );
+  }
+
+  void _showInvalidQR() {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Invalid QR code')));
+    setState(() {
+      isScanned = false;
+    });
+    cameraController.start();
   }
 
   @override

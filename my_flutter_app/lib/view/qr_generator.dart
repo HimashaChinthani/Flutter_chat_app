@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import '../theme.dart';
 import '../main.dart';
-import '../services/chat_service.dart';
-import 'dart:math';
 
 class QRGeneratorScreen extends StatefulWidget {
   @override
@@ -11,27 +10,28 @@ class QRGeneratorScreen extends StatefulWidget {
 }
 
 class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
-  String sessionId = '';
+  String userId = '';
   bool isWaitingForConnection = false;
 
   @override
   void initState() {
     super.initState();
-    generateSessionId();
+    _loadUserId();
   }
 
-  void generateSessionId() {
-    final random = Random();
-    sessionId = 'chat_${random.nextInt(999999).toString().padLeft(6, '0')}';
+  Future<void> _loadUserId() async {
+    final auth = fb_auth.FirebaseAuth.instance;
+    if (auth.currentUser == null) {
+      await auth.signInAnonymously();
+    }
+    if (!mounted) return;
+    setState(() => userId = auth.currentUser!.uid);
   }
 
   void startWaitingForConnection() async {
     setState(() {
       isWaitingForConnection = true;
     });
-
-    // Create a new chat session in the database when starting to wait
-    await ChatService.startNewChatSession(sessionId);
 
     // Simulate waiting for connection
     Future.delayed(Duration(seconds: 3), () {
@@ -50,7 +50,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Generate QR Code'),
+        title: Text('Your QR Code'),
         backgroundColor: AppTheme.primaryPurple,
       ),
       body: Padding(
@@ -80,7 +80,9 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                       border: Border.all(color: AppTheme.accentPurple),
                     ),
                     child: QrImageView(
-                      data: sessionId,
+                      data: userId.isEmpty
+                          ? 'loading'
+                          : 'https://chatterqr.app/u/' + userId,
                       version: QrVersions.auto,
                       size: 200.0,
                       foregroundColor: AppTheme.primaryPurple,
@@ -89,7 +91,9 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                   SizedBox(height: 16),
 
                   Text(
-                    'Session ID: $sessionId',
+                    userId.isEmpty
+                        ? 'User: ...'
+                        : 'URL: https://chatterqr.app/u/$userId',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.grey[600],
@@ -122,11 +126,13 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
             ],
 
             SizedBox(height: 16),
+            // With UID-based QR, there's no need to "regenerate".
+            // Keep a placeholder action to refresh the UID if needed.
             CustomButton(
-              text: 'Generate New QR Code',
+              text: 'Refresh',
               backgroundColor: AppTheme.lightPurple,
-              onPressed: () {
-                generateSessionId();
+              onPressed: () async {
+                await _loadUserId();
                 setState(() {
                   isWaitingForConnection = false;
                 });

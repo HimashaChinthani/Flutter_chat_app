@@ -21,9 +21,14 @@ class Message {
 class ChatScreen extends StatefulWidget {
   final String sessionId;
   final bool isHost;
+  final String? peerName;
 
-  const ChatScreen({Key? key, required this.sessionId, required this.isHost})
-    : super(key: key);
+  const ChatScreen({
+    Key? key,
+    required this.sessionId,
+    required this.isHost,
+    this.peerName,
+  }) : super(key: key);
 
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -288,7 +293,11 @@ class _ChatScreenState extends State<ChatScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Chat Session'),
+            Text(
+              widget.peerName != null && widget.peerName!.isNotEmpty
+                  ? 'Chat with ${widget.peerName}'
+                  : 'Chat Session',
+            ),
             Text(
               widget.sessionId,
               style: TextStyle(fontSize: 12, color: Colors.white70),
