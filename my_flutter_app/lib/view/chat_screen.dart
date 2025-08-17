@@ -311,6 +311,7 @@ class _ChatScreenState extends State<ChatScreen> {
         toolbarHeight: 92,
         elevation: 0,
         backgroundColor: Colors.transparent,
+        automaticallyImplyLeading: false,
         flexibleSpace: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -323,6 +324,16 @@ class _ChatScreenState extends State<ChatScreen> {
           padding: EdgeInsets.only(left: 16, right: 12, top: 28),
           child: Row(
             children: [
+              // normal back arrow for navigation
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: BoxConstraints(minWidth: 40, minHeight: 40),
+                icon: Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+              SizedBox(width: 8),
               CircleAvatar(
                 radius: 22,
                 backgroundColor: Colors.white24,
