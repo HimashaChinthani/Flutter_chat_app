@@ -8,6 +8,9 @@ import 'chat_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class QRScannerScreen extends StatefulWidget {
+  final bool showAppBar;
+  const QRScannerScreen({Key? key, this.showAppBar = true}) : super(key: key);
+
   @override
   _QRScannerScreenState createState() => _QRScannerScreenState();
 }
@@ -178,30 +181,33 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Scan QR Code'),
-        backgroundColor: AppTheme.primaryPurple,
-        actions: [
-          // Torch button using local state (some MobileScannerController versions
-          // don't expose a torch state notifier)
-          IconButton(
-            tooltip: isTorchOn ? 'Turn off light' : 'Turn on light',
-            onPressed: () {
-              cameraController.toggleTorch();
-              setState(() {
-                isTorchOn = !isTorchOn;
-              });
-            },
-            icon: Icon(isTorchOn ? Icons.flash_off : Icons.flash_on),
-          ),
-          // Camera switch
-          IconButton(
-            onPressed: () => cameraController.switchCamera(),
-            icon: const Icon(Icons.flip_camera_android),
-            tooltip: 'Switch camera',
-          ),
-        ],
-      ),
+      appBar: widget.showAppBar
+          ? AppBar(
+              leading: BackButton(color: Colors.white),
+              title: Text('Scan QR Code'),
+              backgroundColor: AppTheme.primaryPurple,
+              actions: [
+                // Torch button using local state (some MobileScannerController versions
+                // don't expose a torch state notifier)
+                IconButton(
+                  tooltip: isTorchOn ? 'Turn off light' : 'Turn on light',
+                  onPressed: () {
+                    cameraController.toggleTorch();
+                    setState(() {
+                      isTorchOn = !isTorchOn;
+                    });
+                  },
+                  icon: Icon(isTorchOn ? Icons.flash_off : Icons.flash_on),
+                ),
+                // Camera switch
+                IconButton(
+                  onPressed: () => cameraController.switchCamera(),
+                  icon: const Icon(Icons.flip_camera_android),
+                  tooltip: 'Switch camera',
+                ),
+              ],
+            )
+          : null,
       body: SafeArea(
         child: Column(
           children: [

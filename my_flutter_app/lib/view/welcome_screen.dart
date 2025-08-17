@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme.dart';
-import '../main.dart';
 import '../services/user_service.dart' as user_svc;
 import 'qr_generator.dart';
 import 'qr_scanner.dart';
@@ -16,6 +15,7 @@ class WelcomeScreen extends StatefulWidget {
 class _WelcomeScreenState extends State<WelcomeScreen> {
   String? _displayName;
   bool _prompted = false; // prevent duplicate dialogs
+  int _selectedNav = 0;
 
   @override
   void initState() {
@@ -232,222 +232,325 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    const navCount = 4; // Home, Generate, Scan, History
+    final displayIndex = (_selectedNav >= navCount) ? 0 : _selectedNav;
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppTheme.primaryPurple, AppTheme.lightPurple],
+      body: IndexedStack(
+        index: displayIndex,
+        children: [
+          // 0 - Home (welcome content)
+          _welcomeBody(),
+          // 1 - QR Generator
+          QRGeneratorScreen(),
+          // 2 - QR Scanner
+          QRScannerScreen(),
+          // 3 - Chat History
+          ChatHistoryScreen(),
+        ],
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: displayIndex,
+        selectedItemColor: AppTheme.primaryPurple,
+        unselectedItemColor: Colors.black54,
+        onTap: (idx) => _handleNavTap(idx),
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.qr_code), label: 'Generate'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.qr_code_scanner),
+            label: 'Scan',
           ),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
+        ],
+      ),
+    );
+  }
+
+  Widget _welcomeBody() {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppTheme.primaryPurple, AppTheme.lightPurple],
         ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 32),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Animated App Logo/Icon with gradient border (glassmorphism)
-                    Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.white.withOpacity(0.5),
-                            Colors.white.withOpacity(0.1),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        border: Border.all(
-                          width: 4,
-                          color: Colors.white.withOpacity(0.3),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 24,
-                            offset: Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: Container(
-                        width: 120,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white.withOpacity(0.10),
-                        ),
-                        child: Center(
-                          child: TweenAnimationBuilder<double>(
-                            tween: Tween(begin: 0.9, end: 1.1),
-                            duration: Duration(seconds: 2),
-                            curve: Curves.easeInOut,
-                            builder: (context, value, child) {
-                              return Transform.scale(
-                                scale: 1 + 0.04 * (value - 1),
-                                child: child,
-                              );
-                            },
-                            onEnd: () {},
-                            child: Icon(
-                              Icons.chat_bubble_outline,
-                              size: 60,
-                              color: Colors.white,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.black26,
-                                  blurRadius: 12,
-                                  offset: Offset(0, 2),
+      ),
+      child: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth > 720;
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - 56,
+                ),
+                child: IntrinsicHeight(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Top header
+                      Row(
+                        children: [
+                          InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () => setState(() => _selectedNav = 0),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 220),
+                              width: 56,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: _selectedNav == 0
+                                      ? [Colors.white, Colors.white70]
+                                      : [Colors.white24, Colors.white12],
                                 ),
-                              ],
+                                boxShadow: _selectedNav == 0
+                                    ? [
+                                        BoxShadow(
+                                          color: Colors.black26,
+                                          blurRadius: 8,
+                                          offset: Offset(0, 3),
+                                        ),
+                                      ]
+                                    : null,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Center(
+                                child: Icon(
+                                  Icons.qr_code,
+                                  color: _selectedNav == 0
+                                      ? AppTheme.primaryPurple
+                                      : Colors.white,
+                                  size: 30,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 28),
-                    // App Title
-                    Text(
-                      'ChatterQR',
-                      style: TextStyle(
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 1.5,
-                        shadows: [
-                          Shadow(
-                            color: Colors.black26,
-                            blurRadius: 10,
-                            offset: Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (_displayName != null) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        'Welcome, ${_displayName!}',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                    SizedBox(height: 12),
-                    Text(
-                      'Connect instantly with anyone through\nQR codes. Start chatting with strangers\nin seconds!',
-                      style: TextStyle(
-                        fontSize: 17,
-                        color: Colors.white70,
-                        height: 1.5,
-                        fontWeight: FontWeight.w400,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    SizedBox(height: 40),
-                    // Action Buttons with glassmorphism effect
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.13),
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.18),
-                          width: 1.5,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 18,
-                            offset: Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      padding: EdgeInsets.symmetric(
-                        vertical: 28,
-                        horizontal: 16,
-                      ),
-                      child: Column(
-                        children: [
-                          CustomButton(
-                            text: 'Generate QR Code',
-                            icon: Icons.qr_code,
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => QRGeneratorScreen(),
+                          SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'ChatterQR',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                              );
-                            },
-                          ),
-                          SizedBox(height: 20),
-                          CustomButton(
-                            text: 'Scan QR Code',
-                            icon: Icons.qr_code_scanner,
-                            backgroundColor: AppTheme.lightPurple,
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => QRScannerScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          SizedBox(height: 20),
-                          CustomButton(
-                            text: 'Chat History',
-                            icon: Icons.history,
-                            backgroundColor: AppTheme.darkPurple,
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => ChatHistoryScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          SizedBox(height: 20),
-                          CustomButton(
-                            text: '🔥 Test Firebase',
-                            icon: Icons.cloud_circle,
-                            backgroundColor: AppTheme.accentPurple,
-                            onPressed: () async {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    '🔄 Testing Firebase connection...',
+                              ),
+                              if (_displayName != null)
+                                Text(
+                                  'Welcome, ${_displayName!}',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 13,
                                   ),
                                 ),
-                              );
-
-                              await testFirebaseConnectionUI(context);
-                            },
+                            ],
                           ),
                         ],
                       ),
-                    ),
-                    SizedBox(height: 36),
-                    // Info Text
-                    Text(
-                      'Start a conversation by generating a QR code or scanning one from another device',
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.white70,
-                        fontWeight: FontWeight.w400,
-                        letterSpacing: 0.2,
+
+                      SizedBox(height: 22),
+
+                      // Main area
+                      Flexible(
+                        child: isWide
+                            ? Row(
+                                children: [
+                                  Expanded(child: _buildFeatureCards(context)),
+                                  SizedBox(width: 20),
+                                  Expanded(child: _buildOverviewCard(context)),
+                                ],
+                              )
+                            : Column(
+                                children: [
+                                  _buildOverviewCard(context),
+                                  SizedBox(height: 18),
+                                  _buildFeatureCards(context),
+                                ],
+                              ),
                       ),
-                      textAlign: TextAlign.center,
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleNavTap(int idx) async {
+    setState(() => _selectedNav = idx);
+  }
+
+  Widget _buildOverviewCard(BuildContext context) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 12,
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(18.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryPurple,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.chat_bubble_outline, color: Colors.white),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Welcome back',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (_displayName != null) ...[
+                        SizedBox(height: 6),
+                        Text(
+                          _displayName!,
+                          style: TextStyle(color: Colors.black54),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Connect instantly with anyone through QR codes. Start chatting with strangers in seconds!',
+              style: TextStyle(color: Colors.black87, height: 1.4),
+            ),
+            SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeatureCards(BuildContext context) {
+    return Column(
+      children: [
+        _featureCard(
+          context,
+          color: Color(0xFF1EAD57),
+          icon: Icons.qr_code_scanner,
+          title: 'QR Scanner',
+          subtitle: 'Scan QR codes using your device camera for quick access.',
+          onPressed: () {
+            setState(() => _selectedNav = 2);
+          },
+        ),
+        SizedBox(height: 14),
+        _featureCard(
+          context,
+          color: Color(0xFFF29A2E),
+          icon: Icons.qr_code,
+          title: 'QR Generator',
+          subtitle: 'Create custom QR codes for chat rooms and share them.',
+          onPressed: () {
+            setState(() => _selectedNav = 1);
+          },
+        ),
+        SizedBox(height: 14),
+        _featureCard(
+          context,
+          color: Color(0xFF7C4DFF),
+          icon: Icons.history,
+          title: 'Recent Conversations',
+          subtitle: 'Continue where you left off with your chat history.',
+          onPressed: () {
+            setState(() => _selectedNav = 3);
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _featureCard(
+    BuildContext context, {
+    required Color color,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onPressed,
+  }) {
+    return Material(
+      borderRadius: BorderRadius.circular(14),
+      color: Colors.white,
+      elevation: 10,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: Colors.white),
+              ),
+              SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(subtitle, style: TextStyle(color: Colors.black54)),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: onPressed,
+                child: Row(
+                  children: [
+                    Text(
+                      'Get started',
+                      style: TextStyle(
+                        color: AppTheme.primaryPurple,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(width: 6),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 14,
+                      color: AppTheme.primaryPurple,
                     ),
                   ],
                 ),
               ),
-            ),
+            ],
           ),
         ),
       ),

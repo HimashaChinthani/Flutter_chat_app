@@ -5,6 +5,9 @@ import '../services/database_service.dart';
 import 'chat_screen.dart';
 
 class ChatHistoryScreen extends StatefulWidget {
+  final bool showAppBar;
+  const ChatHistoryScreen({Key? key, this.showAppBar = true}) : super(key: key);
+
   @override
   _ChatHistoryScreenState createState() => _ChatHistoryScreenState();
 }
@@ -110,13 +113,19 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Chat History'),
-        backgroundColor: AppTheme.primaryPurple,
-        actions: [
-          IconButton(onPressed: loadChatHistory, icon: Icon(Icons.refresh)),
-        ],
-      ),
+      appBar: widget.showAppBar
+          ? AppBar(
+              leading: BackButton(color: Colors.white),
+              title: Text('Chat History'),
+              backgroundColor: AppTheme.primaryPurple,
+              actions: [
+                IconButton(
+                  onPressed: loadChatHistory,
+                  icon: Icon(Icons.refresh),
+                ),
+              ],
+            )
+          : null,
       body: chatSessions.isEmpty
           ? Center(
               child: Column(

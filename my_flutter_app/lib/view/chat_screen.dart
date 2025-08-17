@@ -290,6 +290,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (isLoading) {
       return Scaffold(
         appBar: AppBar(
+          leading: BackButton(color: Colors.white),
           title: Text('Loading Chat...'),
           backgroundColor: AppTheme.primaryPurple,
         ),
@@ -324,7 +325,7 @@ class _ChatScreenState extends State<ChatScreen> {
           padding: EdgeInsets.only(left: 16, right: 12, top: 28),
           child: Row(
             children: [
-              // normal back arrow for navigation
+              // normal back arrow for navigation (kept for visual consistency)
               IconButton(
                 padding: EdgeInsets.zero,
                 constraints: BoxConstraints(minWidth: 40, minHeight: 40),

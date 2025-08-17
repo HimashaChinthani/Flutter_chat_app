@@ -10,6 +10,7 @@ class ChatHistoryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: BackButton(color: Colors.white),
         title: Text('Chat History'),
         backgroundColor: AppTheme.primaryPurple,
       ),
