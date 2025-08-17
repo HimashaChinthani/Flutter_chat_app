@@ -98,7 +98,11 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ChatScreen(sessionId: session.id, isHost: true),
+        builder: (context) => ChatScreen(
+          sessionId: session.id,
+          isHost: true,
+          peerName: session.peerName,
+        ),
       ),
     );
   }
@@ -175,7 +179,9 @@ class ChatHistoryCard extends StatelessWidget {
           child: Icon(Icons.chat, color: Colors.white),
         ),
         title: Text(
-          session.id,
+          session.peerName != null && session.peerName!.isNotEmpty
+              ? session.peerName!
+              : session.id,
           style: TextStyle(
             fontWeight: FontWeight.bold,
             color: AppTheme.primaryPurple,

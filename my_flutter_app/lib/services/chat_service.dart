@@ -4,12 +4,18 @@ import 'database_service.dart';
 
 class ChatService {
   // Start a new chat session
-  static Future<ChatSession> startNewChatSession(String sessionId) async {
+  static Future<ChatSession> startNewChatSession(
+    String sessionId, {
+    String? peerId,
+    String? peerName,
+  }) async {
     final session = ChatSession(
       id: sessionId,
       startTime: DateTime.now(),
       messageCount: 0,
       lastMessage: '',
+      peerId: peerId,
+      peerName: peerName,
     );
 
     await DatabaseService.createChatSession(session);
