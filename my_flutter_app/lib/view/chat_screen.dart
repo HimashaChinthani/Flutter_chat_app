@@ -308,56 +308,92 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.peerName != null && widget.peerName!.isNotEmpty
-                  ? 'Chat with ${widget.peerName}'
-                  : 'Chat Session',
+        toolbarHeight: 92,
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color.fromRGBO(156, 39, 176, 1.0), Color(0xFF1E88E5)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            Text(
-              widget.sessionId,
-              style: TextStyle(fontSize: 12, color: Colors.white70),
-            ),
-          ],
-        ),
-        backgroundColor: AppTheme.primaryPurple,
-        actions: [
-          IconButton(
-            onPressed: _showExitDialog,
-            icon: Icon(Icons.exit_to_app),
-            tooltip: 'End Chat',
+            borderRadius: BorderRadius.vertical(bottom: Radius.circular(18)),
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Connection Status
-          AnimatedContainer(
-            duration: Duration(milliseconds: 300),
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(vertical: 8),
-            color: isConnected ? Colors.green : Colors.red,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  isConnected ? Icons.cloud_done : Icons.cloud_off,
-                  color: Colors.white,
-                  size: 16,
+          padding: EdgeInsets.only(left: 16, right: 12, top: 28),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: Colors.white24,
+                child: Icon(Icons.chat_bubble_outline, color: Colors.white),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      (widget.peerName != null && widget.peerName!.isNotEmpty)
+                          ? widget.peerName!
+                          : 'AI Assistant',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Online • Ready to help',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
                 ),
-                SizedBox(width: 8),
-                Text(
-                  isConnected ? 'Connected to Cloud' : 'Connection Error',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
+              ),
+              SizedBox(width: 8),
+              // Purple pill End Chat
+              TextButton(
+                onPressed: _showExitDialog,
+                style: TextButton.styleFrom(
+                  backgroundColor: Colors.white24,
+                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-              ],
-            ),
+                child: Text('End Chat', style: TextStyle(color: Colors.white)),
+              ),
+            ],
           ),
+        ),
+      ),
+      backgroundColor: Color(0xFFF6F7FB),
+      body: Column(
+        children: [
+          // Connection status (hidden when connected for cleaner UI)
+          if (!isConnected)
+            AnimatedContainer(
+              duration: Duration(milliseconds: 300),
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(vertical: 8),
+              color: Colors.red,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.cloud_off, color: Colors.white, size: 16),
+                  SizedBox(width: 8),
+                  Text(
+                    'Connection Error',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
           // Messages List
           Expanded(
@@ -431,7 +467,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
                 return ListView.builder(
                   controller: scrollController,
-                  padding: EdgeInsets.all(16),
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final message = messages[index];
@@ -441,61 +477,143 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             ),
           ),
-
           // Message Input
           Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 4,
-                  offset: Offset(0, -2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: messageController,
-                    decoration: InputDecoration(
-                      hintText: 'Type a message...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(25),
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 20),
+            color: Colors.transparent,
+            child: SafeArea(
+              top: false,
+              child: Stack(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(30),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black12,
+                                blurRadius: 6,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: messageController,
+                                  decoration: InputDecoration(
+                                    hintText: 'Type your message...',
+                                    border: InputBorder.none,
+                                  ),
+                                  onSubmitted: (_) => _sendMessage(),
+                                  onChanged: (_) => setState(() {}),
+                                  maxLines: null,
+                                ),
+                              ),
+                              if (messageController.text.isNotEmpty)
+                                IconButton(
+                                  onPressed: () {
+                                    messageController.clear();
+                                    setState(() {});
+                                  },
+                                  icon: Icon(
+                                    Icons.clear,
+                                    size: 20,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
                       ),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
+                      SizedBox(width: 12),
+                      // Gradient send button
+                      GestureDetector(
+                        onTap: messageController.text.trim().isNotEmpty
+                            ? _sendMessage
+                            : null,
+                        child: Container(
+                          padding: EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Color.fromRGBO(156, 39, 176, 1.0),
+                                Color(0xFF1E88E5),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black12,
+                                blurRadius: 6,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Icon(Icons.send, color: Colors.white),
+                        ),
                       ),
-                      suffixIcon: messageController.text.isNotEmpty
-                          ? IconButton(
-                              onPressed: () {
-                                messageController.clear();
-                                setState(() {});
-                              },
-                              icon: Icon(Icons.clear, size: 20),
-                            )
-                          : null,
-                    ),
-                    onSubmitted: (_) => _sendMessage(),
-                    onChanged: (_) => setState(() {}),
-                    maxLines: null,
+                    ],
                   ),
-                ),
-                SizedBox(width: 8),
-                FloatingActionButton(
-                  onPressed: messageController.text.trim().isNotEmpty
-                      ? _sendMessage
-                      : null,
-                  backgroundColor: messageController.text.trim().isNotEmpty
-                      ? AppTheme.primaryPurple
-                      : Colors.grey,
-                  mini: true,
-                  child: Icon(Icons.send, color: Colors.white),
-                ),
-              ],
+
+                  // Made in Bolt badge
+                  Positioned(
+                    right: 0,
+                    bottom: 56,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 20,
+                            height: 20,
+                            decoration: BoxDecoration(
+                              color: Colors.black,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: Text(
+                                'b',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Made in Bolt',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -527,7 +645,9 @@ class MessageBubble extends StatelessWidget {
           maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
         decoration: BoxDecoration(
-          color: message.isMe ? AppTheme.primaryPurple : Colors.grey[200],
+          color: message.isMe
+              ? const Color.fromARGB(255, 40, 98, 174)
+              : Color(0xFF1E88E5),
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(18),
             topRight: Radius.circular(18),
