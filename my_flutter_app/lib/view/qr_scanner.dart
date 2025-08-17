@@ -146,7 +146,11 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     final raw = '$a|$b';
     final sessionId = base64Url.encode(utf8.encode(raw));
 
-    await ChatService.startNewChatSession(sessionId);
+    await ChatService.startNewChatSession(
+      sessionId,
+      peerId: otherUid,
+      peerName: otherName,
+    );
 
     Navigator.pushReplacement(
       context,

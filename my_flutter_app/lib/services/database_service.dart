@@ -14,7 +14,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 2, // Increment version
+      version: 3, // Increment version to add peerId/peerName
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE messages(
@@ -33,7 +33,9 @@ class DatabaseService {
             startTime TEXT,
             endTime TEXT,
             messageCount INTEGER,
-            lastMessage TEXT
+            lastMessage TEXT,
+            peerId TEXT,
+            peerName TEXT
           )
         ''');
       },
@@ -42,14 +44,14 @@ class DatabaseService {
           await db.execute('''
             ALTER TABLE messages ADD COLUMN sessionId TEXT
           ''');
+        }
+        if (oldVersion < 3) {
+          // add peer columns to chat_sessions table (SQLite doesn't support ALTER ADD multiple easily in older versions)
           await db.execute('''
-            CREATE TABLE chat_sessions(
-              id TEXT PRIMARY KEY,
-              startTime TEXT,
-              endTime TEXT,
-              messageCount INTEGER,
-              lastMessage TEXT
-            )
+            ALTER TABLE chat_sessions ADD COLUMN peerId TEXT
+          ''');
+          await db.execute('''
+            ALTER TABLE chat_sessions ADD COLUMN peerName TEXT
           ''');
         }
       },
@@ -93,7 +95,10 @@ class DatabaseService {
   static Future<List<ChatSession>> getChatSessions() async {
     final db = await getDatabase();
     final result = await db.query('chat_sessions', orderBy: 'startTime DESC');
-    return result.map((map) => ChatSession.fromMap(map)).toList();
+    return result.map((map) {
+      // ensure keys exist for compatibility with older rows
+      return ChatSession.fromMap(map);
+    }).toList();
   }
 
   // Retrieve messages by sessionId
