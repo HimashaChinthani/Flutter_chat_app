@@ -1,22 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../theme.dart';
-import '../services/chat_service.dart';
-import '../services/database_service.dart';
-import '../services/user_service.dart';
-
-class Message {
-  final String id;
-  final String text;
-  final bool isMe;
-  final DateTime timestamp;
-
-  Message({
-    required this.id,
-    required this.text,
-    required this.isMe,
-    required this.timestamp,
-  });
-}
+import '../services/realtime_chat_service.dart';
+import '../models/chat_message.dart';
 
 class ChatScreen extends StatefulWidget {
   final String sessionId;
@@ -37,131 +23,94 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController messageController = TextEditingController();
   final ScrollController scrollController = ScrollController();
-  List<Message> messages = [];
   bool isConnected = true;
-  bool isTyping = false;
-
-  Future<void> _createTestUser() async {
-    try {
-      final user = await UserService.createUser(
-        name: 'Chat User ${DateTime.now().millisecondsSinceEpoch}',
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 8),
-              Expanded(child: Text('User created: ${user.id}')),
-            ],
-          ),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 3),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error creating user: $e'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 4),
-        ),
-      );
-    }
-  }
+  bool isLoading = true;
+  String? currentUserId;
 
   @override
   void initState() {
     super.initState();
-    // Simulate connection establishment
-    Future.delayed(Duration(seconds: 1), () {
-      if (widget.isHost) {
-        addMessage('Someone joined your chat session!', false);
-      } else {
-        addMessage('Connected to chat session', false);
-        addMessage('Hello! I scanned your QR code.', true);
-        // Simulate host response
-        Future.delayed(Duration(seconds: 2), () {
-          addMessage('Great! Welcome to our chat session.', false);
-        });
-      }
-    });
+    _initializeChat();
   }
 
-  void addMessage(String text, bool isMe) async {
-    final message = Message(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      text: text,
-      isMe: isMe,
-      timestamp: DateTime.now(),
-    );
+  Future<void> _initializeChat() async {
+    try {
+      // Ensure user is authenticated
+      if (FirebaseAuth.instance.currentUser == null) {
+        await FirebaseAuth.instance.signInAnonymously();
+      }
+      
+      currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      
+      // Create or join the chat session
+      await RealtimeChatService.createOrJoinSession(
+        widget.sessionId,
+        peerName: widget.peerName,
+      );
 
-    setState(() {
-      messages.add(message);
-    });
+      setState(() {
+        isLoading = false;
+      });
 
-    // Save to database if it's a real message (not system message)
-    if (text != 'Someone joined your chat session!' &&
-        text != 'Connected to chat session') {
-      await ChatService.sendMessage(
+      // Auto-scroll to bottom when new messages arrive
+      Future.delayed(Duration(milliseconds: 500), () {
+        _scrollToBottom();
+      });
+
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+        isConnected = false;
+      });
+      _showError('Failed to initialize chat: $e');
+    }
+  }
+
+  Future<void> _sendMessage() async {
+    if (messageController.text.trim().isEmpty) return;
+
+    final messageText = messageController.text.trim();
+    messageController.clear();
+
+    try {
+      await RealtimeChatService.sendMessage(
         sessionId: widget.sessionId,
-        senderId: isMe ? 'me' : 'other',
-        receiverId: isMe ? 'other' : 'me',
-        text: text,
+        text: messageText,
+      );
+      
+      // Auto-scroll to bottom after sending
+      Future.delayed(Duration(milliseconds: 100), () {
+        _scrollToBottom();
+      });
+    } catch (e) {
+      _showError('Failed to send message: $e');
+      // Restore the message text if sending failed
+      messageController.text = messageText;
+    }
+  }
+
+  void _scrollToBottom() {
+    if (scrollController.hasClients) {
+      scrollController.animateTo(
+        scrollController.position.maxScrollExtent,
+        duration: Duration(milliseconds: 300),
+        curve: Curves.easeOut,
       );
     }
-
-    scrollToBottom();
   }
 
-  void sendMessage() {
-    if (messageController.text.trim().isNotEmpty) {
-      final messageText = messageController.text.trim();
-      addMessage(messageText, true);
-      messageController.clear();
-
-      // Show typing indicator
-      setState(() {
-        isTyping = true;
-      });
-
-      // Simulate receiving a response
-      Future.delayed(Duration(seconds: 1), () {
-        setState(() {
-          isTyping = false;
-        });
-        if (mounted) {
-          // Generate a simple response
-          List<String> responses = [
-            'Thanks for your message!',
-            'That\'s interesting!',
-            'I agree with you.',
-            'Tell me more about that.',
-            'Nice to hear from you!',
-          ];
-          final randomResponse =
-              responses[DateTime.now().millisecond % responses.length];
-          addMessage(randomResponse, false);
-        }
-      });
-    }
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 4),
+      ),
+    );
   }
 
-  void scrollToBottom() {
-    Future.delayed(Duration(milliseconds: 100), () {
-      if (scrollController.hasClients) {
-        scrollController.animateTo(
-          scrollController.position.maxScrollExtent,
-          duration: Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  void showExitDialog() {
+  void _showExitDialog() {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -197,7 +146,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Saving will allow you to view this conversation later in Chat History.',
+                        'Chat messages are automatically saved in the cloud.',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppTheme.darkPurple,
@@ -207,39 +156,32 @@ class _ChatScreenState extends State<ChatScreen> {
                   ],
                 ),
               ),
-              SizedBox(height: 12),
-              Text(
-                'This will end the current chat session.',
-                style: TextStyle(color: Colors.grey[600], fontSize: 14),
-              ),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+              onPressed: () => Navigator.of(context).pop(),
               child: Text('Cancel'),
             ),
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                exitWithoutSaving();
+                _exitWithoutSaving();
               },
               child: Text(
-                'Exit without saving',
+                'Delete & Exit',
                 style: TextStyle(color: Colors.red),
               ),
             ),
             ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                saveAndExit();
+                _saveAndExit();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primaryPurple,
               ),
-              child: Text('Save & Exit'),
+              child: Text('Keep & Exit'),
             ),
           ],
         );
@@ -247,47 +189,77 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  void saveAndExit() async {
-    // End the chat session in the database
-    await DatabaseService.endChatSession(widget.sessionId);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.white),
-            SizedBox(width: 8),
-            Text('Chat saved to history successfully!'),
-          ],
+  Future<void> _saveAndExit() async {
+    try {
+      await RealtimeChatService.endSession(widget.sessionId);
+      
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Chat session ended and saved!'),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
         ),
-        backgroundColor: Colors.green,
-        duration: Duration(seconds: 2),
-      ),
-    );
-
-    // Navigate back to welcome screen
+      );
+    } catch (e) {
+      _showError('Error ending session: $e');
+    }
+    
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
-  void exitWithoutSaving() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.info, color: Colors.white),
-            SizedBox(width: 8),
-            Text('Chat session ended without saving'),
-          ],
+  Future<void> _exitWithoutSaving() async {
+    try {
+      await RealtimeChatService.deleteSession(widget.sessionId);
+      
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.delete, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Chat session deleted'),
+            ],
+          ),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
         ),
-        backgroundColor: Colors.orange,
-        duration: Duration(seconds: 2),
-      ),
-    );
+      );
+    } catch (e) {
+      _showError('Error deleting session: $e');
+    }
+    
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text('Loading Chat...'),
+          backgroundColor: AppTheme.primaryPurple,
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: AppTheme.primaryPurple),
+              SizedBox(height: 16),
+              Text('Connecting to chat session...'),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Column(
@@ -307,12 +279,7 @@ class _ChatScreenState extends State<ChatScreen> {
         backgroundColor: AppTheme.primaryPurple,
         actions: [
           IconButton(
-            onPressed: _createTestUser,
-            icon: Icon(Icons.person_add),
-            tooltip: 'Create Test User',
-          ),
-          IconButton(
-            onPressed: showExitDialog,
+            onPressed: _showExitDialog,
             icon: Icon(Icons.exit_to_app),
             tooltip: 'End Chat',
           ),
@@ -330,13 +297,13 @@ class _ChatScreenState extends State<ChatScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  isConnected ? Icons.wifi : Icons.wifi_off,
+                  isConnected ? Icons.cloud_done : Icons.cloud_off,
                   color: Colors.white,
                   size: 16,
                 ),
                 SizedBox(width: 8),
                 Text(
-                  isConnected ? 'Connected' : 'Disconnected',
+                  isConnected ? 'Connected to Cloud' : 'Connection Error',
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w500,
@@ -348,16 +315,79 @@ class _ChatScreenState extends State<ChatScreen> {
 
           // Messages List
           Expanded(
-            child: ListView.builder(
-              controller: scrollController,
-              padding: EdgeInsets.all(16),
-              itemCount: messages.length + (isTyping ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index == messages.length && isTyping) {
-                  return TypingIndicator();
+            child: StreamBuilder<List<ChatMessage>>(
+              stream: RealtimeChatService.getMessagesStream(widget.sessionId),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.error, size: 64, color: Colors.red),
+                        SizedBox(height: 16),
+                        Text('Error loading messages'),
+                        Text(snapshot.error.toString(), 
+                             style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () => setState(() {}),
+                          child: Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  );
                 }
-                final message = messages[index];
-                return MessageBubble(message: message);
+
+                if (!snapshot.hasData) {
+                  return Center(
+                    child: CircularProgressIndicator(color: AppTheme.primaryPurple),
+                  );
+                }
+
+                final messages = snapshot.data!;
+                
+                if (messages.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.chat_bubble_outline, 
+                             size: 64, color: Colors.grey),
+                        SizedBox(height: 16),
+                        Text(
+                          'No messages yet',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Start the conversation by sending a message!',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                // Auto-scroll to bottom when new messages arrive
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _scrollToBottom();
+                });
+
+                return ListView.builder(
+                  controller: scrollController,
+                  padding: EdgeInsets.all(16),
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    final message = messages[index];
+                    return MessageBubble(message: message);
+                  },
+                );
               },
             ),
           ),
@@ -389,21 +419,29 @@ class _ChatScreenState extends State<ChatScreen> {
                         horizontal: 16,
                         vertical: 8,
                       ),
-                      suffixIcon: IconButton(
-                        onPressed: () {
-                          messageController.clear();
-                        },
-                        icon: Icon(Icons.clear, size: 20),
-                      ),
+                      suffixIcon: messageController.text.isNotEmpty
+                          ? IconButton(
+                              onPressed: () {
+                                messageController.clear();
+                                setState(() {});
+                              },
+                              icon: Icon(Icons.clear, size: 20),
+                            )
+                          : null,
                     ),
-                    onSubmitted: (_) => sendMessage(),
+                    onSubmitted: (_) => _sendMessage(),
+                    onChanged: (_) => setState(() {}),
                     maxLines: null,
                   ),
                 ),
                 SizedBox(width: 8),
                 FloatingActionButton(
-                  onPressed: sendMessage,
-                  backgroundColor: AppTheme.primaryPurple,
+                  onPressed: messageController.text.trim().isNotEmpty 
+                      ? _sendMessage 
+                      : null,
+                  backgroundColor: messageController.text.trim().isNotEmpty
+                      ? AppTheme.primaryPurple
+                      : Colors.grey,
                   mini: true,
                   child: Icon(Icons.send, color: Colors.white),
                 ),
@@ -414,10 +452,17 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
   }
+
+  @override
+  void dispose() {
+    messageController.dispose();
+    scrollController.dispose();
+    super.dispose();
+  }
 }
 
 class MessageBubble extends StatelessWidget {
-  final Message message;
+  final ChatMessage message;
 
   const MessageBubble({Key? key, required this.message}) : super(key: key);
 
@@ -464,64 +509,6 @@ class MessageBubble extends StatelessWidget {
                 color: message.isMe ? Colors.white70 : Colors.grey[600],
                 fontSize: 12,
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class TypingIndicator extends StatefulWidget {
-  @override
-  _TypingIndicatorState createState() => _TypingIndicatorState();
-}
-
-class _TypingIndicatorState extends State<TypingIndicator>
-    with TickerProviderStateMixin {
-  late AnimationController _animationController;
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      duration: Duration(milliseconds: 1500),
-      vsync: this,
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        margin: EdgeInsets.symmetric(vertical: 4),
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.grey[200],
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Typing',
-              style: TextStyle(color: Colors.grey[600], fontSize: 14),
-            ),
-            AnimatedBuilder(
-              animation: _animationController,
-              builder: (context, child) {
-                return Text(
-                  '...',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                );
-              },
             ),
           ],
         ),
