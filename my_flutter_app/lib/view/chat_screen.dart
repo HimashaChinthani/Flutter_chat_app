@@ -112,74 +112,124 @@ class _ChatScreenState extends State<ChatScreen> {
   void _showExitDialog() {
     showDialog(
       context: context,
+      barrierDismissible: true,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.exit_to_app, color: AppTheme.primaryPurple),
-              SizedBox(width: 8),
-              Text('End Chat Session'),
-            ],
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Do you want to save this chat to history?',
-                style: TextStyle(fontSize: 16),
-              ),
-              SizedBox(height: 12),
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.accentPurple,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: AppTheme.primaryPurple,
-                      size: 20,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Top circular icon with soft gradient
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [Color(0xFFFF8A65), Color(0xFFFF7043)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Chat messages are automatically saved in the cloud.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.darkPurple,
+                  ),
+                  child: Center(
+                    child: Icon(
+                      Icons.info_outline,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                  ),
+                ),
+                SizedBox(height: 16),
+                Text(
+                  'End This Chat?',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  'Are you sure you want to end this conversation? Your chat history will be saved, but the current session will close.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 18),
+
+                // Buttons column: outlined Continue then gradient End Chat
+                Column(
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          _saveAndExit(); // keep & exit moved here
+                        },
+                        icon: Icon(
+                          Icons.check_circle_outline,
+                          color: Colors.black87,
+                        ),
+                        label: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12.0),
+                          child: Text(
+                            'Continue Chat',
+                            style: TextStyle(
+                              color: Colors.black87,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          side: BorderSide(color: Colors.grey.shade300),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          _exitWithoutSaving(); // delete & exit moved here
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Color(0xFFEF5350), Color(0xFFFF7043)],
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.delete_outline, color: Colors.white),
+                              SizedBox(width: 8),
+                              Text(
+                                'End Chat',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _exitWithoutSaving();
-              },
-              child: Text('Delete & Exit', style: TextStyle(color: Colors.red)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _saveAndExit();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryPurple,
-              ),
-              child: Text('Keep & Exit'),
-            ),
-          ],
         );
       },
     );
