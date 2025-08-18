@@ -337,8 +337,16 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                                 'ChatterQR',
                                 style: TextStyle(
                                   color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.2,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black26,
+                                      offset: Offset(0, 2),
+                                      blurRadius: 4,
+                                    ),
+                                  ],
                                 ),
                               ),
                               if (_displayName != null)
@@ -416,19 +424,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Welcome back',
+                        _displayName != null
+                            ? 'Welcome back, ${_displayName!}'
+                            : 'Welcome back',
                         style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
-                      if (_displayName != null) ...[
-                        SizedBox(height: 6),
-                        Text(
-                          _displayName!,
-                          style: TextStyle(color: Colors.black54),
-                        ),
-                      ],
                     ],
                   ),
                 ),
