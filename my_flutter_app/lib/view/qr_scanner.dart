@@ -3,9 +3,13 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../theme.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'dart:convert';
+import 'dart:async';
 import '../services/chat_service.dart';
+import '../services/invite_service.dart';
+import '../services/notification_service.dart';
 import 'chat_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class QRScannerScreen extends StatefulWidget {
   final bool showAppBar;
@@ -132,6 +136,26 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     }
     final myUid = auth.currentUser!.uid;
 
+    // Try load local display name first, fallback to Firestore user doc
+    String myName = 'Me';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final local = prefs.getString('displayName');
+      if (local != null && local.trim().isNotEmpty) {
+        myName = local.trim();
+      } else {
+        final snap = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(myUid)
+            .get();
+        if (snap.exists) {
+          final data = snap.data();
+          final n = (data?['name'] as String?)?.trim();
+          if (n != null && n.isNotEmpty) myName = n;
+        }
+      }
+    } catch (_) {}
+
     // Fetch other user's display name from Firestore 'users'
     String otherName = 'Friend';
     try {
@@ -152,20 +176,107 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     final raw = '$a|$b';
     final sessionId = base64Url.encode(utf8.encode(raw));
 
+    // Create the session entry and then send an invite to the other user.
     await ChatService.startNewChatSession(
       sessionId,
       peerId: otherUid,
       peerName: otherName,
     );
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ChatScreen(
-          sessionId: sessionId,
-          isHost: false,
-          peerName: otherName,
+    // Send invite document so the other user will get a real-time popup
+    await InviteService.sendInvite(
+      sessionId: sessionId,
+      toUid: otherUid,
+      toName: otherName,
+      fromUid: myUid,
+      fromName: myName,
+    );
+
+    // Create notification for the invited user
+    await NotificationService.createChatInviteNotification(
+      toUid: otherUid,
+      fromUid: myUid,
+      fromName: myName,
+      sessionId: sessionId,
+    );
+    // Listen for invite status changes. If accepted -> open chat. If rejected -> notify.
+    late StreamSubscription sub;
+
+    sub = InviteService.listenToInvite(sessionId).listen((snap) async {
+      if (!snap.exists) return;
+      final data = snap.data() as Map<String, dynamic>?;
+      if (data == null) return;
+      final status = (data['status'] as String?) ?? 'pending';
+      if (status == 'accepted') {
+        // Other user accepted — navigate to chat
+        try {
+          await sub.cancel();
+        } catch (_) {}
+        if (!mounted) return;
+        // Dismiss the waiting dialog if present
+        try {
+          Navigator.of(context, rootNavigator: true).pop();
+        } catch (_) {}
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ChatScreen(
+              sessionId: sessionId,
+              isHost: true,
+              peerName: otherName,
+            ),
+          ),
+        );
+      } else if (status == 'rejected') {
+        try {
+          await sub.cancel();
+        } catch (_) {}
+        if (!mounted) return;
+        // Dismiss waiting dialog
+        try {
+          Navigator.of(context, rootNavigator: true).pop();
+        } catch (_) {}
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Invite was rejected')));
+        setState(() {
+          isScanned = false;
+        });
+        cameraController.start();
+      }
+    });
+
+    // Show a waiting dialog while invite is pending
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Waiting for response'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Text('An invite was sent. Waiting for the other user to accept...'),
+            SizedBox(height: 12),
+            CircularProgressIndicator(),
+          ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              // Cancel invite locally (mark rejected) and stop listening
+              await InviteService.rejectInvite(sessionId);
+              try {
+                await sub.cancel();
+              } catch (_) {}
+              Navigator.of(ctx).pop();
+              setState(() {
+                isScanned = false;
+              });
+              cameraController.start();
+            },
+            child: const Text('Cancel'),
+          ),
+        ],
       ),
     );
   }

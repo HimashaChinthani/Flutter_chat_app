@@ -3,6 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme.dart';
 import '../services/user_service.dart' as user_svc;
+import '../services/invite_service.dart';
+import '../services/notification_service.dart';
+import '../view/chat_screen.dart';
+import '../view/notifications_screen.dart';
+import 'dart:async';
 import 'qr_generator.dart';
 import 'qr_scanner.dart';
 import 'chat_history.dart';
@@ -16,12 +21,15 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   String? _displayName;
   bool _prompted = false; // prevent duplicate dialogs
   int _selectedNav = 0;
+  String? _currentUid; // Store current user UID for notifications
 
   @override
   void initState() {
     super.initState();
     // Defer UI work (dialogs) until after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) => _initNameFlow());
+    // Start listening for incoming invites for this device/user.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startInviteListener());
     // Fallback: if nothing happened within 1200ms, ensure we prompt
     Future.delayed(const Duration(milliseconds: 1200), () {
       if (!mounted) return;
@@ -29,6 +37,51 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         _ensureNamePrompt();
       }
     });
+  }
+
+  StreamSubscription? _inviteSub;
+
+  Future<void> _startInviteListener() async {
+    try {
+      final auth = fb_auth.FirebaseAuth.instance;
+      if (auth.currentUser == null) {
+        await auth.signInAnonymously();
+      }
+      final uid = auth.currentUser?.uid;
+      if (uid == null) return;
+
+      // Store the UID for notifications
+      _currentUid = uid;
+
+      // Listen for pending invites addressed to this UID.
+      _inviteSub = InviteService.streamPendingFor(uid).listen((snap) async {
+        if (snap.docs.isEmpty) return;
+        for (final doc in snap.docs) {
+          final data = doc.data() as Map<String, dynamic>?;
+          if (data == null) continue;
+
+          final sessionId = (data['sessionId'] as String?);
+          final fromName = (data['fromName'] as String?) ?? 'Someone';
+          if (sessionId == null) continue;
+
+          // Only show alert notification - no immediate popup
+          NotificationService.showAlert(
+            context,
+            'New Chat Request',
+            '$fromName wants to chat with you',
+            onTap: () {
+              // Navigate to notifications tab
+              setState(() => _selectedNav = 4);
+            },
+          );
+
+          // Note: We removed the immediate popup dialog here
+          // Users should go to notifications page to accept/reject
+        }
+      });
+    } catch (e) {
+      // ignore for now
+    }
   }
 
   Future<void> _initNameFlow() async {
@@ -111,6 +164,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       );
       await _ensureNamePrompt();
     }
+  }
+
+  @override
+  void dispose() {
+    try {
+      _inviteSub?.cancel();
+    } catch (_) {}
+    super.dispose();
   }
 
   Future<void> _ensureNamePrompt() async {
@@ -232,7 +293,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const navCount = 4; // Home, Generate, Scan, History
+    const navCount = 5; // Home, Generate, Scan, History, Notifications
     final displayIndex = (_selectedNav >= navCount) ? 0 : _selectedNav;
     return WillPopScope(
       onWillPop: () async {
@@ -261,14 +322,17 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             ChatHistoryScreen(
               onBackToHome: () => setState(() => _selectedNav = 0),
             ),
+            // 4 - Notifications
+            NotificationsScreen(),
           ],
         ),
         bottomNavigationBar: BottomNavigationBar(
+          type: BottomNavigationBarType.fixed, // Show all tabs
           currentIndex: displayIndex,
           selectedItemColor: AppTheme.primaryPurple,
           unselectedItemColor: Colors.black54,
           onTap: (idx) => _handleNavTap(idx),
-          items: const [
+          items: [
             BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
             BottomNavigationBarItem(
               icon: Icon(Icons.qr_code),
@@ -281,6 +345,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             BottomNavigationBarItem(
               icon: Icon(Icons.history),
               label: 'History',
+            ),
+            BottomNavigationBarItem(
+              icon: _buildNotificationIcon(),
+              label: 'Alerts',
             ),
           ],
         ),
@@ -417,6 +485,46 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   Future<void> _handleNavTap(int idx) async {
     setState(() => _selectedNav = idx);
+  }
+
+  Widget _buildNotificationIcon() {
+    if (_currentUid == null) {
+      return Icon(Icons.notifications);
+    }
+
+    return StreamBuilder<int>(
+      stream: NotificationService.streamUnreadCountFor(_currentUid!),
+      builder: (context, snapshot) {
+        final unreadCount = snapshot.data ?? 0;
+
+        if (unreadCount == 0) {
+          return Icon(Icons.notifications);
+        }
+
+        return Stack(
+          children: [
+            Icon(Icons.notifications),
+            Positioned(
+              right: 0,
+              top: 0,
+              child: Container(
+                padding: EdgeInsets.all(1),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                constraints: BoxConstraints(minWidth: 12, minHeight: 12),
+                child: Text(
+                  unreadCount > 99 ? '99+' : '$unreadCount',
+                  style: TextStyle(color: Colors.white, fontSize: 8),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _buildOverviewCard(BuildContext context) {

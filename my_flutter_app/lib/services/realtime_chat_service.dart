@@ -148,6 +148,14 @@ class RealtimeChatService {
     return doc.exists ? doc.data() : null;
   }
 
+  // Real-time stream for a session document
+  static Stream<DocumentSnapshot> sessionStream(String sessionId) {
+    return _firestore
+        .collection(_sessionsCollection)
+        .doc(sessionId)
+        .snapshots();
+  }
+
   // Generate a unique session ID
   static String generateSessionId() {
     final timestamp = DateTime.now().millisecondsSinceEpoch;

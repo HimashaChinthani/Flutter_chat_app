@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../theme.dart';
 import '../services/realtime_chat_service.dart';
 import '../models/chat_message.dart';
+import 'chat_history.dart';
+import 'welcome_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   final String sessionId;
@@ -26,12 +31,16 @@ class _ChatScreenState extends State<ChatScreen> {
   bool isConnected = true;
   bool isLoading = true;
   String? currentUserId;
+  // Listener for session changes (ended/deleted)
+  StreamSubscription<DocumentSnapshot>? _sessionSub;
 
   @override
   void initState() {
     super.initState();
     _initializeChat();
   }
+
+  // ...existing code...
 
   Future<void> _initializeChat() async {
     try {
@@ -50,6 +59,30 @@ class _ChatScreenState extends State<ChatScreen> {
 
       setState(() {
         isLoading = false;
+      });
+
+      // Start listening for session changes so both users react when session ends or is deleted
+      _sessionSub = RealtimeChatService.sessionStream(widget.sessionId).listen((
+        doc,
+      ) {
+        if (!doc.exists) {
+          // session deleted -> navigate to chat history
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => ChatHistoryScreen()),
+            );
+          }
+          return;
+        }
+
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data != null && data['isActive'] == false) {
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => ChatHistoryScreen()),
+            );
+          }
+        }
       });
 
       // Auto-scroll to bottom when new messages arrive
@@ -271,7 +304,7 @@ class _ChatScreenState extends State<ChatScreen> {
             children: [
               Icon(Icons.delete, color: Colors.white),
               SizedBox(width: 8),
-              Text('Chat session deleted'),
+              Text('Chat session deleted for both users'),
             ],
           ),
           backgroundColor: Colors.orange,
@@ -282,7 +315,27 @@ class _ChatScreenState extends State<ChatScreen> {
       _showError('Error deleting session: $e');
     }
 
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    // Navigate to chat history after deletion (clear stack up to first route then push)
+    // Ensure the app returns to WelcomeScreen as base, then open ChatHistory
+    if (!mounted) return;
+
+    // Give the UI a short moment to settle after dialog pop, then navigate.
+    await Future.delayed(Duration(milliseconds: 250));
+
+    if (!mounted) return;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // Replace the entire stack with WelcomeScreen as base
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => WelcomeScreen()),
+        (route) => false,
+      );
+
+      // Push ChatHistory so user lands on chat history and can go back to Welcome
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => ChatHistoryScreen()));
+    });
   }
 
   @override
