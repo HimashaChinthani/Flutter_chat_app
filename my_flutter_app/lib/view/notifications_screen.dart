@@ -27,6 +27,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (auth.currentUser == null) await auth.signInAnonymously();
     setState(() => uid = auth.currentUser?.uid);
   }
+
   Future<void> _markAllAsRead() async {
     try {
       await NotificationService.markAllReadFor(uid!);
