@@ -234,34 +234,56 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   Widget build(BuildContext context) {
     const navCount = 4; // Home, Generate, Scan, History
     final displayIndex = (_selectedNav >= navCount) ? 0 : _selectedNav;
-    return Scaffold(
-      body: IndexedStack(
-        index: displayIndex,
-        children: [
-          // 0 - Home (welcome content)
-          _welcomeBody(),
-          // 1 - QR Generator
-          QRGeneratorScreen(),
-          // 2 - QR Scanner
-          QRScannerScreen(),
-          // 3 - Chat History
-          ChatHistoryScreen(),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: displayIndex,
-        selectedItemColor: AppTheme.primaryPurple,
-        unselectedItemColor: Colors.black54,
-        onTap: (idx) => _handleNavTap(idx),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.qr_code), label: 'Generate'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.qr_code_scanner),
-            label: 'Scan',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
-        ],
+    return WillPopScope(
+      onWillPop: () async {
+        // If we're not on the Home tab, go back to Home instead of popping the route.
+        if (_selectedNav != 0) {
+          setState(() => _selectedNav = 0);
+          return false; // prevent route pop
+        }
+        return true; // allow route pop (exit app or previous route)
+      },
+      child: Scaffold(
+        body: IndexedStack(
+          index: displayIndex,
+          children: [
+            // 0 - Home (welcome content)
+            _welcomeBody(),
+            // 1 - QR Generator
+            QRGeneratorScreen(
+              onBackToHome: () => setState(() => _selectedNav = 0),
+            ),
+            // 2 - QR Scanner
+            QRScannerScreen(
+              onBackToHome: () => setState(() => _selectedNav = 0),
+            ),
+            // 3 - Chat History
+            ChatHistoryScreen(
+              onBackToHome: () => setState(() => _selectedNav = 0),
+            ),
+          ],
+        ),
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: displayIndex,
+          selectedItemColor: AppTheme.primaryPurple,
+          unselectedItemColor: Colors.black54,
+          onTap: (idx) => _handleNavTap(idx),
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.qr_code),
+              label: 'Generate',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.qr_code_scanner),
+              label: 'Scan',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.history),
+              label: 'History',
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -6,7 +6,9 @@ import 'chat_screen.dart';
 
 class ChatHistoryScreen extends StatefulWidget {
   final bool showAppBar;
-  const ChatHistoryScreen({Key? key, this.showAppBar = true}) : super(key: key);
+  final VoidCallback? onBackToHome;
+  const ChatHistoryScreen({Key? key, this.showAppBar = true, this.onBackToHome})
+    : super(key: key);
 
   @override
   _ChatHistoryScreenState createState() => _ChatHistoryScreenState();
@@ -115,7 +117,17 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     return Scaffold(
       appBar: widget.showAppBar
           ? AppBar(
-              leading: BackButton(color: Colors.white),
+              leading: IconButton(
+                icon: const BackButtonIcon(),
+                color: Colors.white,
+                onPressed: () {
+                  if (widget.onBackToHome != null) {
+                    widget.onBackToHome!();
+                  } else {
+                    Navigator.of(context).pop();
+                  }
+                },
+              ),
               title: Text('Chat History'),
               backgroundColor: AppTheme.primaryPurple,
               actions: [

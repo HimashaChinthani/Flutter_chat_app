@@ -8,7 +8,9 @@ import 'qr_scanner.dart';
 
 class QRGeneratorScreen extends StatefulWidget {
   final bool showAppBar;
-  const QRGeneratorScreen({Key? key, this.showAppBar = true}) : super(key: key);
+  final VoidCallback? onBackToHome;
+  const QRGeneratorScreen({Key? key, this.showAppBar = true, this.onBackToHome})
+    : super(key: key);
 
   @override
   _QRGeneratorScreenState createState() => _QRGeneratorScreenState();
@@ -78,7 +80,17 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: BackButton(color: Colors.white),
+        leading: IconButton(
+          icon: const BackButtonIcon(),
+          color: Colors.white,
+          onPressed: () {
+            if (widget.onBackToHome != null) {
+              widget.onBackToHome!();
+            } else {
+              Navigator.of(context).pop();
+            }
+          },
+        ),
         title: Text('Your QR Code'),
         backgroundColor: AppTheme.primaryPurple,
       ),

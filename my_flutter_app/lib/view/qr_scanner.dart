@@ -9,7 +9,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class QRScannerScreen extends StatefulWidget {
   final bool showAppBar;
-  const QRScannerScreen({Key? key, this.showAppBar = true}) : super(key: key);
+  final VoidCallback? onBackToHome;
+  const QRScannerScreen({Key? key, this.showAppBar = true, this.onBackToHome})
+    : super(key: key);
 
   @override
   _QRScannerScreenState createState() => _QRScannerScreenState();
@@ -183,7 +185,17 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     return Scaffold(
       appBar: widget.showAppBar
           ? AppBar(
-              leading: BackButton(color: Colors.white),
+              leading: IconButton(
+                icon: const BackButtonIcon(),
+                color: Colors.white,
+                onPressed: () {
+                  if (widget.onBackToHome != null) {
+                    widget.onBackToHome!();
+                  } else {
+                    Navigator.of(context).pop();
+                  }
+                },
+              ),
               title: Text('Scan QR Code'),
               backgroundColor: AppTheme.primaryPurple,
               actions: [
