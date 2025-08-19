@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/realtime_chat_service.dart';
 import '../services/user_service.dart' as user_svc;
 import '../services/invite_service.dart';
 import '../services/notification_service.dart';
@@ -449,6 +451,91 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                                 ),
                             ],
                           ),
+                          Spacer(),
+                          // Unread chats icon (top-right)
+                          StreamBuilder<QuerySnapshot>(
+                            stream:
+                                RealtimeChatService.streamSessionsWithUnreadForCurrentUser(),
+                            builder: (context, snap) {
+                              final docs = snap.data?.docs ?? [];
+                              // compute unique sessionIds that have unread messages
+                              final sessions = <String>{};
+                              for (final d in docs) {
+                                try {
+                                  final data =
+                                      d.data() as Map<String, dynamic>?;
+                                  if (data == null) continue;
+                                  final sid =
+                                      (data['sessionId'] as String?) ?? '';
+                                  if (sid.isNotEmpty) sessions.add(sid);
+                                } catch (_) {}
+                              }
+                              final count = sessions.length;
+
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 4.0),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(18),
+                                  onTap: () {
+                                    // Open chat history filtered to only unread
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            ChatHistoryScreen(onlyUnread: true),
+                                      ),
+                                    );
+                                  },
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      Container(
+                                        width: 44,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white24,
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          Icons.mark_email_unread,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      if (count > 0)
+                                        Positioned(
+                                          right: 6,
+                                          top: 8,
+                                          child: Container(
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.red,
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            constraints: BoxConstraints(
+                                              minWidth: 18,
+                                              minHeight: 18,
+                                            ),
+                                            child: Text(
+                                              count > 99 ? '99+' : '$count',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 11,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ],
                       ),
 
@@ -614,6 +701,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             setState(() => _selectedNav = 3);
           },
         ),
+        SizedBox(height: 14),
+        // Unread Messages feature card removed per request; top-right icon remains
       ],
     );
   }

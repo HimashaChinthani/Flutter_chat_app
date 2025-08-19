@@ -213,10 +213,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           await sub.cancel();
         } catch (_) {}
         if (!mounted) return;
-        // Dismiss the waiting dialog if present
-        try {
-          Navigator.of(context, rootNavigator: true).pop();
-        } catch (_) {}
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -232,10 +228,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           await sub.cancel();
         } catch (_) {}
         if (!mounted) return;
-        // Dismiss waiting dialog
-        try {
-          Navigator.of(context, rootNavigator: true).pop();
-        } catch (_) {}
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Invite was rejected')));
@@ -246,45 +238,33 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       }
     });
 
-    // Show a waiting dialog while invite is pending
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Waiting for response'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            Text('An invite was sent. Waiting for the other user to accept...'),
-            SizedBox(height: 12),
-            CircularProgressIndicator(),
-          ],
+    // Do not show a blocking "waiting" dialog for the inviter.
+    // Instead, show a lightweight SnackBar and resume scanning. The recipient
+    // will receive the real-time alert/notification via NotificationService.
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Invite sent to $otherName'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 3),
         ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              // Cancel invite locally (mark rejected) and stop listening
-              await InviteService.rejectInvite(sessionId);
-              try {
-                await sub.cancel();
-              } catch (_) {}
-              Navigator.of(ctx).pop();
-              setState(() {
-                isScanned = false;
-              });
-              cameraController.start();
-            },
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
+      );
+    }
+    setState(() {
+      isScanned = false;
+    });
+    cameraController.start();
   }
 
   void _showInvalidQR() {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Invalid QR code')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Invalid QR code'),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
     setState(() {
       isScanned = false;
     });
