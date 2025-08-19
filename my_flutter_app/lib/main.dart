@@ -1,9 +1,100 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_options.dart';
 import 'theme.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'view/welcome_screen.dart';
+import 'view/notifications_screen.dart';
+import 'services/crud_services.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    // Initialize Firebase for all platforms using generated options
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print('Firebase initialized successfully');
+
+    // Ensure we have an authenticated user or reuse a previously saved UID.
+    // On web the auth session may not persist between visits; to avoid
+    // creating a new anonymous UID for the same browser/device we persist
+    // the UID locally under 'savedUid' and reuse it when present.
+    final prefs = await SharedPreferences.getInstance();
+    final savedUid = prefs.getString('savedUid');
+    final auth = FirebaseAuth.instance;
+    if (auth.currentUser == null) {
+      if (savedUid != null && savedUid.isNotEmpty) {
+        // We have a saved UID from a previous run; do not sign in again to
+        // avoid creating a second anonymous account for the same device.
+        // Note: we still keep the saved UID in prefs and other flows will
+        // use it for Firestore reads/writes when auth.currentUser is null.
+        print('Found saved UID in prefs, skipping anon sign-in: $savedUid');
+      } else {
+        final cred = await auth.signInAnonymously();
+        final uid = cred.user?.uid;
+        if (uid != null) {
+          await prefs.setString('savedUid', uid);
+          print('Signed in anonymously and saved UID: $uid');
+        }
+      }
+    }
+  } catch (e) {
+    print('Error initializing Firebase: $e');
+  }
+
   runApp(const ChatApp());
+}
+
+Future<void> testFirebaseConnection() async {
+  try {
+    final firestore = FirebaseFirestore.instance;
+    final ref = firestore.collection('AppDiagnostics').doc('main_test');
+
+    // Try to write a test value
+    await ref.set({
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      'message': 'Firestore connection test',
+    });
+    print('✅ Firestore write test successful');
+
+    // Try to read the test value
+    final snapshot = await ref.get();
+    if (snapshot.exists) {
+      print('✅ Firestore read test successful: ${snapshot.data()}');
+    } else {
+      print('❌ Firestore read test failed: no data');
+    }
+  } catch (e) {
+    print('❌ Firestore connection test failed: $e');
+  }
+}
+
+// UI-friendly tester that writes to 'users' with auto id and shows SnackBars
+Future<void> testFirebaseConnectionUI(BuildContext context) async {
+  final crudServices = CrudServices();
+  final id = await crudServices.insertUserAuto(
+    name: 'Test User ${DateTime.now().millisecondsSinceEpoch}',
+  );
+  if (!context.mounted) return;
+  if (id != null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('✅ Firebase OK! User inserted: $id'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('❌ Firebase connection failed!'),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
 }
 
 class ChatApp extends StatelessWidget {
@@ -16,6 +107,7 @@ class ChatApp extends StatelessWidget {
       theme: AppTheme.theme,
       home: WelcomeScreen(),
       debugShowCheckedModeBanner: false,
+      routes: {'/notifications': (context) => NotificationsScreen()},
     );
   }
 }

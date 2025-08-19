@@ -11,20 +11,29 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:my_flutter_app/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+  testWidgets('ChatApp displays welcome screen with QR chat features', (
+    WidgetTester tester,
+  ) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(ChatApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Verify that the app title is displayed.
+    expect(find.text('ChatterQR'), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // Verify that the main action buttons are present.
+    expect(find.text('Generate QR Code'), findsOneWidget);
+    expect(find.text('Scan QR Code'), findsOneWidget);
+    expect(find.text('Chat History'), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verify that relevant icons are present.
+    expect(find.byIcon(Icons.qr_code), findsOneWidget);
+    expect(find.byIcon(Icons.qr_code_scanner), findsOneWidget);
+    expect(find.byIcon(Icons.history), findsOneWidget);
+
+    // Verify descriptive text is present.
+    expect(
+      find.textContaining('Connect instantly with anyone through'),
+      findsOneWidget,
+    );
   });
 }

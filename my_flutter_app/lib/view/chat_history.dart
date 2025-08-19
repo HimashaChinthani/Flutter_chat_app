@@ -1,70 +1,77 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../theme.dart';
-import '../main.dart';
+import '../services/realtime_chat_service.dart';
 import 'chat_screen.dart';
-
-class ChatSession {
-  final String id;
-  final String sessionId;
-  final DateTime startTime;
-  final DateTime? endTime;
-  final int messageCount;
-  final String lastMessage;
-
-  ChatSession({
-    required this.id,
-    required this.sessionId,
-    required this.startTime,
-    this.endTime,
-    required this.messageCount,
-    required this.lastMessage,
-  });
-}
+import 'welcome_screen.dart';
 
 class ChatHistoryScreen extends StatefulWidget {
+  final bool showAppBar;
+  final bool onlyUnread;
+  final VoidCallback? onBackToHome;
+  const ChatHistoryScreen({
+    Key? key,
+    this.showAppBar = true,
+    this.onlyUnread = false,
+    this.onBackToHome,
+  }) : super(key: key);
+
   @override
   _ChatHistoryScreenState createState() => _ChatHistoryScreenState();
 }
 
 class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
-  List<ChatSession> chatSessions = [];
+  bool _isConfirmingBack = false;
+
+  Future<bool> _handleBackPressed() async {
+    // Prevent multiple dialogs from stacking (system + UI back taps)
+    if (_isConfirmingBack) return false;
+    _isConfirmingBack = true;
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text('Leave chat history?'),
+          content: Text(
+            'Do you want to leave Chat History and return to Welcome?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text('Continue'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text('Leave'),
+            ),
+          ],
+        );
+      },
+    );
+
+    _isConfirmingBack = false;
+
+    if (result == true) {
+      // User chose to leave: navigate back to welcome (or call callback)
+      if (widget.onBackToHome != null) {
+        widget.onBackToHome!();
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => WelcomeScreen()),
+        );
+      }
+    }
+
+    // Always intercept the original pop because we handled navigation manually
+    return false;
+  }
 
   @override
   void initState() {
     super.initState();
-    loadChatHistory();
-  }
-
-  void loadChatHistory() {
-    // Simulate loading chat history from SQLite
-    setState(() {
-      chatSessions = [
-        ChatSession(
-          id: '1',
-          sessionId: 'chat_123456',
-          startTime: DateTime.now().subtract(Duration(days: 1)),
-          endTime: DateTime.now().subtract(Duration(days: 1, hours: -2)),
-          messageCount: 25,
-          lastMessage: 'Thanks for the great conversation!',
-        ),
-        ChatSession(
-          id: '2',
-          sessionId: 'chat_789012',
-          startTime: DateTime.now().subtract(Duration(days: 3)),
-          endTime: DateTime.now().subtract(Duration(days: 3, hours: -1)),
-          messageCount: 12,
-          lastMessage: 'See you later!',
-        ),
-        ChatSession(
-          id: '3',
-          sessionId: 'chat_345678',
-          startTime: DateTime.now().subtract(Duration(days: 7)),
-          endTime: DateTime.now().subtract(Duration(days: 7, hours: -3)),
-          messageCount: 45,
-          lastMessage: 'It was nice meeting you.',
-        ),
-      ];
-    });
   }
 
   void deleteChatSession(String sessionId) {
@@ -72,28 +79,37 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Delete Chat'),
-          content: Text('Are you sure you want to delete this chat session?'),
+          title: Text('Remove Chat from Your History'),
+          content: Text(
+            'This will remove the chat session from your account. The other participant will keep the chat unless they also remove it. If no participants remain, the chat will be deleted permanently.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
               child: Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  chatSessions.removeWhere((session) => session.id == sessionId);
-                });
+              onPressed: () async {
                 Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Chat session deleted'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
+                try {
+                  await RealtimeChatService.deleteSession(sessionId);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Chat removed from your history'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error removing chat: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: Text('Delete'),
+              child: Text('Remove', style: TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -101,164 +117,450 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     );
   }
 
-  void viewChatSession(ChatSession session) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ChatScreen(
-          sessionId: session.sessionId,
-          isHost: true,
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Chat History'),
-        backgroundColor: AppTheme.primaryPurple,
-        actions: [
-          IconButton(
-            onPressed: loadChatHistory,
-            icon: Icon(Icons.refresh),
-          ),
-        ],
-      ),
-      body: chatSessions.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.chat_bubble_outline,
-                    size: 64,
-                    color: Colors.grey[400],
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    'No chat history yet',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Start a conversation to see it here',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[500],
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : ListView.builder(
-              padding: EdgeInsets.all(16),
-              itemCount: chatSessions.length,
-              itemBuilder: (context, index) {
-                final session = chatSessions[index];
-                return ChatHistoryCard(
-                  session: session,
-                  onTap: () => viewChatSession(session),
-                  onDelete: () => deleteChatSession(session.id),
-                );
-              },
-            ),
-    );
-  }
-}
-
-class ChatHistoryCard extends StatelessWidget {
-  final ChatSession session;
-  final VoidCallback onTap;
-  final VoidCallback onDelete;
-
-  const ChatHistoryCard({
-    Key? key,
-    required this.session,
-    required this.onTap,
-    required this.onDelete,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        contentPadding: EdgeInsets.all(16),
-        leading: CircleAvatar(
-          backgroundColor: AppTheme.primaryPurple,
-          child: Icon(
-            Icons.chat,
-            color: Colors.white,
-          ),
-        ),
-        title: Text(
-          session.sessionId,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: AppTheme.primaryPurple,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(height: 4),
-            Text(
-              session.lastMessage,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: Colors.grey[700]),
-            ),
-            SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(Icons.message, size: 14, color: Colors.grey[500]),
-                SizedBox(width: 4),
-                Text(
-                  '${session.messageCount} messages',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[500],
-                  ),
+    return WillPopScope(
+      onWillPop: _handleBackPressed,
+      child: Scaffold(
+        appBar: widget.showAppBar
+            ? AppBar(
+                leading: IconButton(
+                  icon: const BackButtonIcon(),
+                  color: Colors.white,
+                  onPressed: () => _handleBackPressed(),
                 ),
-                SizedBox(width: 16),
-                Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
-                SizedBox(width: 4),
-                Text(
-                  '${session.startTime.day}/${session.startTime.month}/${session.startTime.year}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[500],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        trailing: PopupMenuButton(
-          onSelected: (value) {
-            if (value == 'delete') {
-              onDelete();
-            }
-          },
-          itemBuilder: (context) => [
-            PopupMenuItem(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(Icons.delete, color: Colors.red),
-                  SizedBox(width: 8),
-                  Text('Delete'),
-                ],
+                title: Text('Chat History'),
+                backgroundColor: AppTheme.primaryPurple,
+              )
+            : null,
+        body: widget.onlyUnread
+            ? StreamBuilder<QuerySnapshot>(
+                stream:
+                    RealtimeChatService.streamSessionsWithUnreadForCurrentUser(),
+                builder: (context, msgSnap) {
+                  if (msgSnap.hasError)
+                    return Center(child: Text('Error loading unread chats'));
+                  if (!msgSnap.hasData)
+                    return Center(
+                      child: CircularProgressIndicator(
+                        color: AppTheme.primaryPurple,
+                      ),
+                    );
+
+                  // Build a map of sessionId -> latest message data for unread messages
+                  final docs = msgSnap.data!.docs;
+                  final Map<String, Map<String, dynamic>> latestBySession = {};
+                  for (final d in docs) {
+                    final data = d.data() as Map<String, dynamic>?;
+                    if (data == null) continue;
+                    final sid = (data['sessionId'] as String?) ?? '';
+                    if (sid.isEmpty) continue;
+                    final ts = (data['timestampMillis'] as int?) ?? 0;
+                    final existing = latestBySession[sid];
+                    if (existing == null ||
+                        (existing['timestampMillis'] as int? ?? 0) < ts) {
+                      latestBySession[sid] = {
+                        'lastMessage': data['text'] ?? '',
+                        'timestampMillis': ts,
+                        'sessionId': sid,
+                        'senderId': data['senderId'] ?? '',
+                      };
+                    }
+                  }
+
+                  if (latestBySession.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.mail_outline,
+                            size: 64,
+                            color: Colors.grey,
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            'No unread messages',
+                            style: TextStyle(fontSize: 18, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  // Convert to list and sort by latest timestamp desc
+                  final sessionsList = latestBySession.values.toList()
+                    ..sort(
+                      (a, b) => (b['timestampMillis'] as int).compareTo(
+                        a['timestampMillis'] as int,
+                      ),
+                    );
+
+                  return ListView.builder(
+                    padding: EdgeInsets.all(16),
+                    itemCount: sessionsList.length,
+                    itemBuilder: (context, index) {
+                      final data = sessionsList[index];
+                      final sessionId = data['sessionId'] as String;
+
+                      return Card(
+                        margin: EdgeInsets.only(bottom: 12),
+                        child: FutureBuilder<Map<String, dynamic>?>(
+                          future: RealtimeChatService.getSessionInfo(sessionId),
+                          builder: (context, sessSnap) {
+                            final sess = sessSnap.data;
+                            final peerName = sess != null
+                                ? (sess['peerName'] ?? 'Unknown Chat')
+                                : 'Unknown Chat';
+                            final isActive = sess != null
+                                ? (sess['isActive'] == true)
+                                : false;
+
+                            return ListTile(
+                              tileColor: Color(0xFFF3F1FF),
+                              leading: CircleAvatar(
+                                backgroundColor: AppTheme.primaryPurple,
+                                child: Icon(Icons.chat, color: Colors.white),
+                              ),
+                              title: Text(
+                                peerName,
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    data['lastMessage'] ?? 'No messages',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  SizedBox(height: 4),
+                                  // Text(
+                                  //   'Session: $sessionId',
+                                  //   style: TextStyle(
+                                  //     fontSize: 12,
+                                  //     color: Colors.grey,
+                                  //   ),
+                                  // ),
+                                ],
+                              ),
+                              trailing: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerRight,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.primaryPurple,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        '1',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Icon(
+                                      isActive
+                                          ? Icons.circle
+                                          : Icons.circle_outlined,
+                                      color: isActive
+                                          ? Colors.green
+                                          : Colors.grey,
+                                      size: 12,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ChatScreen(
+                                      sessionId: sessionId,
+                                      isHost: sess != null
+                                          ? (sess['createdBy'] ==
+                                                FirebaseAuth
+                                                    .instance
+                                                    .currentUser
+                                                    ?.uid)
+                                          : false,
+                                      peerName: peerName,
+                                    ),
+                                  ),
+                                );
+                              },
+                              onLongPress: () {
+                                deleteChatSession(sessionId);
+                              },
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  );
+                },
+              )
+            : StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('chat_sessions')
+                    .where(
+                      'participants',
+                      arrayContains: FirebaseAuth.instance.currentUser?.uid,
+                    )
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.error, size: 64, color: Colors.red),
+                          SizedBox(height: 16),
+                          Text('Error loading chat history'),
+                          Text(snapshot.error.toString()),
+                        ],
+                      ),
+                    );
+                  }
+
+                  if (!snapshot.hasData) {
+                    return Center(
+                      child: CircularProgressIndicator(
+                        color: AppTheme.primaryPurple,
+                      ),
+                    );
+                  }
+
+                  final chatSessions = snapshot.data!.docs;
+
+                  // Sort sessions by lastActivity on client side
+                  chatSessions.sort((a, b) {
+                    final aData = a.data() as Map<String, dynamic>;
+                    final bData = b.data() as Map<String, dynamic>;
+
+                    final aActivity = aData['lastActivity'] as Timestamp?;
+                    final bActivity = bData['lastActivity'] as Timestamp?;
+
+                    if (aActivity != null && bActivity != null) {
+                      return bActivity.compareTo(aActivity); // Descending order
+                    }
+
+                    final aCreated = aData['createdAt'] as Timestamp?;
+                    final bCreated = bData['createdAt'] as Timestamp?;
+
+                    if (aCreated != null && bCreated != null) {
+                      return bCreated.compareTo(aCreated); // Descending order
+                    }
+
+                    return 0;
+                  });
+
+                  if (chatSessions.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.history, size: 64, color: Colors.grey),
+                          SizedBox(height: 16),
+                          Text(
+                            'No chat history',
+                            style: TextStyle(fontSize: 18, color: Colors.grey),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Start a new chat to see it here',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    padding: EdgeInsets.all(16),
+                    itemCount: chatSessions.length,
+                    itemBuilder: (context, index) {
+                      final session = chatSessions[index];
+                      final data = session.data() as Map<String, dynamic>;
+
+                      return FutureBuilder<String>(
+                        future: (() async {
+                          final participants =
+                              (data['participants'] as List?)?.cast<String>() ??
+                              [];
+                          final currentUid =
+                              FirebaseAuth.instance.currentUser?.uid;
+                          String peerUid = '';
+                          if (participants.length == 2 && currentUid != null) {
+                            peerUid = participants.firstWhere(
+                              (p) => p != currentUid,
+                              orElse: () => '',
+                            );
+                          }
+                          if (peerUid.isNotEmpty) {
+                            try {
+                              final userDoc = await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(peerUid)
+                                  .get();
+                              if (userDoc.exists) {
+                                final userData = userDoc.data();
+                                final name = userData?['name'];
+                                if (name is String && name.isNotEmpty)
+                                  return name;
+                              }
+                            } catch (_) {}
+                          }
+                          final fallback = data['peerName'];
+                          if (fallback is String && fallback.isNotEmpty)
+                            return fallback;
+                          return 'Unknown Chat';
+                        })(),
+                        builder: (context, peerSnap) {
+                          final peerName = peerSnap.data ?? 'Unknown Chat';
+                          return Card(
+                            margin: EdgeInsets.only(bottom: 12),
+                            child: StreamBuilder<int>(
+                              stream:
+                                  RealtimeChatService.streamUnreadCountForSession(
+                                    data['sessionId'] ?? '',
+                                  ),
+                              builder: (context, unreadSnap) {
+                                final unread = unreadSnap.data ?? 0;
+                                final hasUnread = unread > 0;
+                                if (widget.onlyUnread && unread == 0)
+                                  return SizedBox.shrink();
+
+                                return ListTile(
+                                  tileColor: hasUnread
+                                      ? Color(0xFFF3F1FF)
+                                      : Colors.transparent,
+                                  leading: CircleAvatar(
+                                    backgroundColor: AppTheme.primaryPurple,
+                                    child: Icon(
+                                      Icons.chat,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    peerName,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: hasUnread ? Colors.black : null,
+                                    ),
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        data['lastMessage'] ?? 'No messages',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      SizedBox(height: 4),
+                                      // Text(
+                                      //   'Session: ${data['sessionId']}',
+                                      //   style: TextStyle(
+                                      //     fontSize: 12,
+                                      //     color: Colors.grey,
+                                      //   ),
+                                      // ),
+                                    ],
+                                  ),
+                                  trailing: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerRight,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        if (hasUnread)
+                                          Container(
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: AppTheme.primaryPurple,
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Text(
+                                              unread > 99 ? '99+' : '$unread',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ),
+                                        SizedBox(height: hasUnread ? 4 : 0),
+                                        Icon(
+                                          data['isActive'] == true
+                                              ? Icons.circle
+                                              : Icons.circle_outlined,
+                                          color: data['isActive'] == true
+                                              ? Colors.green
+                                              : Colors.grey,
+                                          size: 12,
+                                        ),
+                                        SizedBox(height: 2),
+                                        Text(
+                                          data['isActive'] == true
+                                              ? 'Active'
+                                              : 'Ended',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => ChatScreen(
+                                          sessionId: data['sessionId'],
+                                          isHost:
+                                              data['createdBy'] ==
+                                              FirebaseAuth
+                                                  .instance
+                                                  .currentUser
+                                                  ?.uid,
+                                          peerName: peerName,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  onLongPress: () {
+                                    deleteChatSession(data['sessionId']);
+                                  },
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
               ),
-            ),
-          ],
-        ),
-        onTap: onTap,
       ),
     );
   }
