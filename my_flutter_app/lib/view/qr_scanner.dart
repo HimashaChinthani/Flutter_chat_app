@@ -65,17 +65,17 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 8),
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.accentPurple,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  scannedData,
-                  style: TextStyle(fontFamily: 'monospace', fontSize: 14),
-                ),
-              ),
+              // Container(
+              //   padding: EdgeInsets.all(12),
+              //   decoration: BoxDecoration(
+              //     color: AppTheme.accentPurple,
+              //     borderRadius: BorderRadius.circular(8),
+              //   ),
+              //   child: Text(
+              //     scannedData,
+              //     style: TextStyle(fontFamily: 'monospace', fontSize: 14),
+              //   ),
+              // ),
               SizedBox(height: 16),
               Text('Do you want to start chatting?'),
               SizedBox(height: 8),

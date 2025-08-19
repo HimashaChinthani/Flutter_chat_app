@@ -235,46 +235,51 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   SizedBox(height: 4),
-                                  Text(
-                                    'Session: $sessionId',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
+                                  // Text(
+                                  //   'Session: $sessionId',
+                                  //   style: TextStyle(
+                                  //     fontSize: 12,
+                                  //     color: Colors.grey,
+                                  //   ),
+                                  // ),
                                 ],
                               ),
-                              trailing: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.primaryPurple,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      '1',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
+                              trailing: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerRight,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.primaryPurple,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        '1',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  SizedBox(height: 6),
-                                  Icon(
-                                    isActive
-                                        ? Icons.circle
-                                        : Icons.circle_outlined,
-                                    color: isActive
-                                        ? Colors.green
-                                        : Colors.grey,
-                                    size: 12,
-                                  ),
-                                ],
+                                    SizedBox(height: 4),
+                                    Icon(
+                                      isActive
+                                          ? Icons.circle
+                                          : Icons.circle_outlined,
+                                      color: isActive
+                                          ? Colors.green
+                                          : Colors.grey,
+                                      size: 12,
+                                    ),
+                                  ],
+                                ),
                               ),
                               onTap: () {
                                 Navigator.push(
@@ -467,59 +472,64 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                       SizedBox(height: 4),
-                                      Text(
-                                        'Session: ${data['sessionId']}',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
+                                      // Text(
+                                      //   'Session: ${data['sessionId']}',
+                                      //   style: TextStyle(
+                                      //     fontSize: 12,
+                                      //     color: Colors.grey,
+                                      //   ),
+                                      // ),
                                     ],
                                   ),
-                                  trailing: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      if (hasUnread)
-                                        Container(
-                                          padding: EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: AppTheme.primaryPurple,
-                                            borderRadius: BorderRadius.circular(
-                                              12,
+                                  trailing: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerRight,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        if (hasUnread)
+                                          Container(
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: AppTheme.primaryPurple,
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Text(
+                                              unread > 99 ? '99+' : '$unread',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 12,
+                                              ),
                                             ),
                                           ),
-                                          child: Text(
-                                            unread > 99 ? '99+' : '$unread',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 12,
-                                            ),
+                                        SizedBox(height: hasUnread ? 4 : 0),
+                                        Icon(
+                                          data['isActive'] == true
+                                              ? Icons.circle
+                                              : Icons.circle_outlined,
+                                          color: data['isActive'] == true
+                                              ? Colors.green
+                                              : Colors.grey,
+                                          size: 12,
+                                        ),
+                                        SizedBox(height: 2),
+                                        Text(
+                                          data['isActive'] == true
+                                              ? 'Active'
+                                              : 'Ended',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.grey,
                                           ),
                                         ),
-                                      SizedBox(height: hasUnread ? 6 : 0),
-                                      Icon(
-                                        data['isActive'] == true
-                                            ? Icons.circle
-                                            : Icons.circle_outlined,
-                                        color: data['isActive'] == true
-                                            ? Colors.green
-                                            : Colors.grey,
-                                        size: 12,
-                                      ),
-                                      SizedBox(height: 4),
-                                      Text(
-                                        data['isActive'] == true
-                                            ? 'Active'
-                                            : 'Ended',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                   onTap: () {
                                     Navigator.push(

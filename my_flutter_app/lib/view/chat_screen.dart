@@ -172,7 +172,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: LinearGradient(
-                      colors: [Color(0xFFFF8A65), Color(0xFFFF7043)],
+                      colors: [Color.fromARGB(255, 1, 187, 26), Color.fromARGB(255, 25, 132, 8)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -222,7 +222,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         label: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 12.0),
                           child: Text(
-                            'Continue Chat',
+                            'Keep & Exit Chat',
                             style: TextStyle(
                               color: Colors.black87,
                               fontSize: 16,
@@ -251,7 +251,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           padding: EdgeInsets.symmetric(vertical: 12),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
-                              colors: [Color(0xFFEF5350), Color(0xFFFF7043)],
+                              colors: [Color.fromARGB(255, 1, 187, 26), Color.fromARGB(255, 25, 132, 8)],
                               begin: Alignment.centerLeft,
                               end: Alignment.centerRight,
                             ),
@@ -263,7 +263,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               Icon(Icons.delete_outline, color: Colors.white),
                               SizedBox(width: 8),
                               Text(
-                                'End Chat',
+                                'Delete & Exit Chat',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
@@ -715,8 +715,8 @@ class MessageBubble extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: message.isMe
-              ? const Color.fromARGB(255, 40, 98, 174)
-              : Color(0xFF1E88E5),
+              ? const Color.fromARGB(255, 9, 104, 228)
+              : Color.fromARGB(255, 229, 230, 234),
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(18),
             topRight: Radius.circular(18),
@@ -745,7 +745,7 @@ class MessageBubble extends StatelessWidget {
             Text(
               '${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}',
               style: TextStyle(
-                color: message.isMe ? Colors.white70 : Colors.grey[600],
+                color: message.isMe ? Colors.white70 : const Color.fromARGB(255, 0, 0, 0),
                 fontSize: 12,
               ),
             ),
