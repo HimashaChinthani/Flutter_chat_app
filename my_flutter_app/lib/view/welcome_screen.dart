@@ -213,7 +213,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 controller: controller,
                 textInputAction: TextInputAction.done,
                 decoration: const InputDecoration(
-                  hintText: 'e.g. Alex',
+                  hintText: 'e.g. Amal',
                   border: OutlineInputBorder(),
                 ),
               ),

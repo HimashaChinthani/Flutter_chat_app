@@ -14,7 +14,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 3, // Increment version to add peerId/peerName
+      version: 4, // Increment version to add isSaved column
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE messages(
@@ -35,7 +35,8 @@ class DatabaseService {
             messageCount INTEGER,
             lastMessage TEXT,
             peerId TEXT,
-            peerName TEXT
+            peerName TEXT,
+            isSaved INTEGER DEFAULT 0
           )
         ''');
       },
@@ -46,12 +47,16 @@ class DatabaseService {
           ''');
         }
         if (oldVersion < 3) {
-          // add peer columns to chat_sessions table (SQLite doesn't support ALTER ADD multiple easily in older versions)
           await db.execute('''
             ALTER TABLE chat_sessions ADD COLUMN peerId TEXT
           ''');
           await db.execute('''
             ALTER TABLE chat_sessions ADD COLUMN peerName TEXT
+          ''');
+        }
+        if (oldVersion < 4) {
+          await db.execute('''
+            ALTER TABLE chat_sessions ADD COLUMN isSaved INTEGER DEFAULT 0
           ''');
         }
       },

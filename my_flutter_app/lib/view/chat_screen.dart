@@ -6,6 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../theme.dart';
 import '../services/realtime_chat_service.dart';
 import '../models/chat_message.dart';
+// import '../models/chat_session.dart';
+import '../services/chat_service.dart';
 import 'chat_history.dart';
 import 'welcome_screen.dart';
 
@@ -152,6 +154,8 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_isShowingExit || !mounted) return;
     _isShowingExit = true;
 
+    // Get session info to check isSaved
+    final session = await ChatService.getOrCreateSession(widget.sessionId);
     await showDialog(
       context: context,
       barrierDismissible: true,
@@ -165,14 +169,16 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Top circular icon with soft gradient
                 Container(
                   width: 64,
                   height: 64,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: LinearGradient(
-                      colors: [Color.fromARGB(255, 1, 187, 26), Color.fromARGB(255, 25, 132, 8)],
+                      colors: [
+                        Color.fromARGB(255, 1, 187, 26),
+                        Color.fromARGB(255, 25, 132, 8),
+                      ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -192,39 +198,47 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 SizedBox(height: 10),
                 Text(
-                  'Are you sure you want to end this conversation? Your chat history will be saved, but the current session will close.',
+                  session.isSaved
+                      ? 'Are you sure you want to end this conversation? Your chat history will be saved.'
+                      : 'Are you sure you want to end this instant chat? This chat will be deleted for both users.',
                   style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                   textAlign: TextAlign.center,
                 ),
                 SizedBox(height: 18),
-
-                // Buttons column: outlined Continue then gradient End Chat
                 Column(
                   children: [
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
                         onPressed: () async {
-                          // Continue Chat should just navigate to chat history
-                          // without altering the session state.
                           Navigator.of(context).pop();
                           if (!mounted) return;
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                              builder: (_) => ChatHistoryScreen(),
-                            ),
-                          );
+                          if (session.isSaved) {
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(
+                                builder: (_) => ChatHistoryScreen(),
+                              ),
+                            );
+                          } else {
+                            await _exitWithoutSaving();
+                          }
                         },
                         icon: Icon(
-                          Icons.check_circle_outline,
-                          color: Colors.black87,
+                          session.isSaved
+                              ? Icons.check_circle_outline
+                              : Icons.delete_outline,
+                          color: session.isSaved ? Colors.black87 : Colors.red,
                         ),
                         label: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 12.0),
                           child: Text(
-                            'Keep & Exit Chat',
+                            session.isSaved
+                                ? 'Keep & Exit Chat'
+                                : 'Delete & Exit Chat',
                             style: TextStyle(
-                              color: Colors.black87,
+                              color: session.isSaved
+                                  ? Colors.black87
+                                  : Colors.red,
                               fontSize: 16,
                             ),
                           ),
@@ -234,42 +248,6 @@ class _ChatScreenState extends State<ChatScreen> {
                           side: BorderSide(color: Colors.grey.shade300),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: InkWell(
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          _exitWithoutSaving(); // delete & exit moved here
-                        },
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [Color.fromARGB(255, 1, 187, 26), Color.fromARGB(255, 25, 132, 8)],
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
-                            ),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.delete_outline, color: Colors.white),
-                              SizedBox(width: 8),
-                              Text(
-                                'Delete & Exit Chat',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
                           ),
                         ),
                       ),
@@ -360,7 +338,14 @@ class _ChatScreenState extends State<ChatScreen> {
     // Normal loaded UI wrapped with a WillPopScope to intercept system back
     return WillPopScope(
       onWillPop: () async {
-        await _showExitDialog();
+        final session = await ChatService.getOrCreateSession(widget.sessionId);
+        if (session.isSaved) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => ChatHistoryScreen()),
+          );
+        } else {
+          await _exitWithoutSaving();
+        }
         return false;
       },
       child: Scaffold(
@@ -369,6 +354,21 @@ class _ChatScreenState extends State<ChatScreen> {
           elevation: 0,
           backgroundColor: Colors.transparent,
           automaticallyImplyLeading: false,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () async {
+              final session = await ChatService.getOrCreateSession(
+                widget.sessionId,
+              );
+              if (session.isSaved) {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => ChatHistoryScreen()),
+                );
+              } else {
+                await _exitWithoutSaving();
+              }
+            },
+          ),
           flexibleSpace: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -381,14 +381,7 @@ class _ChatScreenState extends State<ChatScreen> {
             padding: EdgeInsets.only(left: 16, right: 12, top: 28),
             child: Row(
               children: [
-                IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: BoxConstraints(minWidth: 40, minHeight: 40),
-                  icon: Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () async {
-                    await _showExitDialog();
-                  },
-                ),
+                // Removed duplicate arrow back button
                 SizedBox(width: 8),
                 CircleAvatar(
                   radius: 22,
@@ -419,21 +412,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ],
                   ),
                 ),
-                SizedBox(width: 8),
-                TextButton(
-                  onPressed: _showExitDialog,
-                  style: TextButton.styleFrom(
-                    backgroundColor: Colors.white24,
-                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    'End Chat',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
+                // End Chat button removed for both users
               ],
             ),
           ),
@@ -745,7 +724,9 @@ class MessageBubble extends StatelessWidget {
             Text(
               '${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}',
               style: TextStyle(
-                color: message.isMe ? Colors.white70 : const Color.fromARGB(255, 0, 0, 0),
+                color: message.isMe
+                    ? Colors.white70
+                    : const Color.fromARGB(255, 0, 0, 0),
                 fontSize: 12,
               ),
             ),

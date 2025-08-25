@@ -8,6 +8,7 @@ class ChatService {
     String sessionId, {
     String? peerId,
     String? peerName,
+    bool isSaved = false,
   }) async {
     final session = ChatSession(
       id: sessionId,
@@ -16,6 +17,7 @@ class ChatService {
       lastMessage: '',
       peerId: peerId,
       peerName: peerName,
+      isSaved: isSaved,
     );
 
     await DatabaseService.createChatSession(session);

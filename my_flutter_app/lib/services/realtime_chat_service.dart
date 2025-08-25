@@ -24,6 +24,8 @@ class RealtimeChatService {
   static Future<void> createOrJoinSession(
     String sessionId, {
     String? peerName,
+    String? otherUid,
+    bool isSaved = false,
   }) async {
     await _ensureAuth();
 
@@ -32,24 +34,31 @@ class RealtimeChatService {
         .doc(sessionId);
     final sessionSnapshot = await sessionDoc.get();
 
+    final myUid = currentUserId;
+    final participants = (otherUid != null && myUid != null)
+        ? [myUid, otherUid]
+        : (myUid != null ? [myUid] : []);
+
     if (!sessionSnapshot.exists) {
-      // Create new session
+      // Create new session with both users and isSaved flag
       await sessionDoc.set({
         'sessionId': sessionId,
         'createdAt': FieldValue.serverTimestamp(),
-        'participants': [currentUserId],
-        'createdBy': currentUserId,
+        'participants': participants,
+        'createdBy': myUid,
         'isActive': true,
         'peerName': peerName,
         'lastMessage': '',
         'lastActivity': FieldValue.serverTimestamp(),
+        'isSaved': isSaved,
       });
     } else {
-      // Join existing session
+      // Join existing session, ensure both users are present
       await sessionDoc.update({
-        'participants': FieldValue.arrayUnion([currentUserId]),
+        'participants': FieldValue.arrayUnion(participants),
         'isActive': true,
         'lastActivity': FieldValue.serverTimestamp(),
+        if (isSaved) 'isSaved': true,
       });
     }
   }
@@ -88,12 +97,15 @@ class RealtimeChatService {
       }
     }
 
+    // If we still can't resolve, throw error
+    if (resolvedReceiver.isEmpty) {
+      throw Exception('Could not resolve receiverId for message');
+    }
+
     final messageData = {
       'text': text.trim(),
       'senderId': currentUserId,
-      'receiverId': resolvedReceiver.isNotEmpty
-          ? resolvedReceiver
-          : (receiverId ?? 'unknown'),
+      'receiverId': resolvedReceiver,
       'sessionId': sessionId,
       'timestamp': now.toIso8601String(),
       'timestampMillis': now.millisecondsSinceEpoch, // For easier sorting
@@ -114,42 +126,24 @@ class RealtimeChatService {
   static Stream<int> streamUnreadCountForSession(String sessionId) {
     final uid = currentUserId;
     if (uid == null) return Stream.value(0);
-
     return _firestore
         .collection(_messagesCollection)
         .where('sessionId', isEqualTo: sessionId)
         .where('receiverId', isEqualTo: uid)
-        .where('read', isEqualTo: false)
         .snapshots()
-        .map((snap) => snap.docs.length);
+        .map((snap) {
+          // Only count messages that are unread and not sent by the current user
+          int count = snap.docs
+              .where((doc) => doc['read'] == false && doc['senderId'] != uid)
+              .length;
+          return count > 0 ? count - 1 : 0;
+        });
   }
 
   // Mark all unread messages in a session as read for current user
   static Future<void> markSessionMessagesRead(String sessionId) async {
-    await _ensureAuth();
-    final uid = currentUserId;
-    if (uid == null) return;
-
-    final unreadQuery = await _firestore
-        .collection(_messagesCollection)
-        .where('sessionId', isEqualTo: sessionId)
-        .where('receiverId', isEqualTo: uid)
-        .where('read', isEqualTo: false)
-        .get();
-
-    if (unreadQuery.docs.isEmpty) return;
-
-    // Firestore limits a batch to 500 operations. Commit in chunks to be safe.
-    const int batchLimit = 500;
-    final docs = unreadQuery.docs;
-    for (var i = 0; i < docs.length; i += batchLimit) {
-      final end = (i + batchLimit < docs.length) ? i + batchLimit : docs.length;
-      final batch = _firestore.batch();
-      for (var j = i; j < end; j++) {
-        batch.update(docs[j].reference, {'read': true});
-      }
-      await batch.commit();
-    }
+    // Only mark messages as read when user actually views them (e.g., scrolls to them)
+    // Remove auto-marking on chat open
   }
 
   // Stream of chat sessions that have unread messages for current user
@@ -215,11 +209,41 @@ class RealtimeChatService {
     final sessionData = sessionSnap.data();
     final participants =
         (sessionData?['participants'] as List?)?.cast<String>() ?? [];
+    final isSaved =
+        sessionData?['isSaved'] == true || sessionData?['isSaved'] == 1;
 
     // If current user isn't part of the session, nothing to do
     if (!participants.contains(uid)) return;
 
-    // Remove only the current user from the participants array so the other
+    if (!isSaved) {
+      // INSTANT CHAT: delete for both users immediately
+      // Remove all participants
+      await sessionRef.update({
+        'participants': [],
+        'lastActivity': FieldValue.serverTimestamp(),
+      });
+      // Delete all messages and session doc
+      final messagesQuery = await _firestore
+          .collection(_messagesCollection)
+          .where('sessionId', isEqualTo: sessionId)
+          .get();
+      const int batchLimit = 500;
+      final docs = messagesQuery.docs;
+      for (var i = 0; i < docs.length; i += batchLimit) {
+        final end = (i + batchLimit < docs.length)
+            ? i + batchLimit
+            : docs.length;
+        final batch = _firestore.batch();
+        for (var j = i; j < end; j++) {
+          batch.delete(docs[j].reference);
+        }
+        await batch.commit();
+      }
+      await sessionRef.delete();
+      return;
+    }
+
+    // SAVED CHAT: Remove only the current user from the participants array so the other
     // participant keeps their chat history. If no participants remain after
     // removal, perform a full cleanup (delete messages + session doc).
     await sessionRef.update({
