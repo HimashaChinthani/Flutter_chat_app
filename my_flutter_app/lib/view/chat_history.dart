@@ -212,9 +212,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                             final peerName = sess != null
                                 ? (sess['peerName'] ?? 'Unknown Chat')
                                 : 'Unknown Chat';
-                            final isActive = sess != null
-                                ? (sess['isActive'] == true)
-                                : false;
+                            // isActive variable removed (no longer used)
 
                             return ListTile(
                               tileColor: Color(0xFFF3F1FF),
@@ -268,16 +266,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                                         ),
                                       ),
                                     ),
-                                    SizedBox(height: 4),
-                                    Icon(
-                                      isActive
-                                          ? Icons.circle
-                                          : Icons.circle_outlined,
-                                      color: isActive
-                                          ? Colors.green
-                                          : Colors.grey,
-                                      size: 12,
-                                    ),
+                                    // Active dot removed
                                   ],
                                 ),
                               ),
@@ -508,26 +497,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                                               ),
                                             ),
                                           ),
-                                        SizedBox(height: hasUnread ? 4 : 0),
-                                        Icon(
-                                          data['isActive'] == true
-                                              ? Icons.circle
-                                              : Icons.circle_outlined,
-                                          color: data['isActive'] == true
-                                              ? Colors.green
-                                              : Colors.grey,
-                                          size: 12,
-                                        ),
-                                        SizedBox(height: 2),
-                                        Text(
-                                          data['isActive'] == true
-                                              ? 'Active'
-                                              : 'Ended',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.grey,
-                                          ),
-                                        ),
+                                        // Removed Active/Ended text and green/red dot
                                       ],
                                     ),
                                   ),

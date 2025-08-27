@@ -25,6 +25,7 @@ class InviteService {
     required String toName,
     String? fromUid,
     String? fromName,
+    bool isSaved = false,
   }) async {
     await _ensureAuth();
 
@@ -36,6 +37,7 @@ class InviteService {
       'toName': toName,
       'fromUid': senderUid,
       'fromName': fromName ?? 'Someone',
+      'isSaved': isSaved,
       'status': 'pending', // pending | accepted | rejected
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),

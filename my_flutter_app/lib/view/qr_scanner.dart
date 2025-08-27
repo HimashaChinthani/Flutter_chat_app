@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'dart:convert';
 import 'dart:async';
 import '../services/chat_service.dart';
+import '../services/realtime_chat_service.dart';
 import '../services/invite_service.dart';
 import '../services/notification_service.dart';
 import 'chat_screen.dart';
@@ -52,7 +53,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text(
-            'QR Code Scanned',
+            'Choose Chat Type',
             style: TextStyle(color: AppTheme.primaryPurple),
           ),
           content: Column(
@@ -60,28 +61,28 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             children: [
               Icon(Icons.qr_code_2, size: 48, color: AppTheme.primaryPurple),
               SizedBox(height: 16),
-              Text(
-                'Scanned QR:',
-                style: TextStyle(fontWeight: FontWeight.bold),
+              Text('Select chat type for this session:'),
+              SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  startChat(isSaved: false);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryPurple,
+                ),
+                child: Text('Instant Chat'),
               ),
               SizedBox(height: 8),
-              // Container(
-              //   padding: EdgeInsets.all(12),
-              //   decoration: BoxDecoration(
-              //     color: AppTheme.accentPurple,
-              //     borderRadius: BorderRadius.circular(8),
-              //   ),
-              //   child: Text(
-              //     scannedData,
-              //     style: TextStyle(fontFamily: 'monospace', fontSize: 14),
-              //   ),
-              // ),
-              SizedBox(height: 16),
-              Text('Do you want to start chatting?'),
-              SizedBox(height: 8),
-              Text(
-                'After the chat, you can choose to save it to history.',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  startChat(isSaved: true);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryPurple,
+                ),
+                child: Text('Saved Chat'),
               ),
             ],
           ),
@@ -96,23 +97,13 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               },
               child: Text('Cancel'),
             ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                startChat();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryPurple,
-              ),
-              child: Text('Start Chat'),
-            ),
           ],
         );
       },
     );
   }
 
-  void startChat() async {
+  void startChat({required bool isSaved}) async {
     // Expect a URL like https://chatterqr.app/u/<uid>
     final uri = Uri.tryParse(scannedData);
     if (uri == null ||
@@ -177,10 +168,20 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     final sessionId = base64Url.encode(utf8.encode(raw));
 
     // Create the session entry and then send an invite to the other user.
+
+    // Ensure both users are added to session participants in Firestore
+    await RealtimeChatService.createOrJoinSession(
+      sessionId,
+      peerName: otherName,
+      otherUid: otherUid,
+      isSaved: isSaved,
+    );
+
     await ChatService.startNewChatSession(
       sessionId,
       peerId: otherUid,
       peerName: otherName,
+      isSaved: isSaved,
     );
 
     // Send invite document so the other user will get a real-time popup
@@ -190,6 +191,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       toName: otherName,
       fromUid: myUid,
       fromName: myName,
+      isSaved: isSaved,
     );
 
     // Create notification for the invited user
