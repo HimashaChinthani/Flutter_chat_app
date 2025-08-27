@@ -4,8 +4,14 @@ import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme.dart';
 import '../main.dart';
+import 'qr_scanner.dart';
 
 class QRGeneratorScreen extends StatefulWidget {
+  final bool showAppBar;
+  final VoidCallback? onBackToHome;
+  const QRGeneratorScreen({Key? key, this.showAppBar = true, this.onBackToHome})
+    : super(key: key);
+
   @override
   _QRGeneratorScreenState createState() => _QRGeneratorScreenState();
 }
@@ -63,7 +69,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Waiting for someone to scan your QR code...'),
-            backgroundColor: AppTheme.primaryPurple,
+            backgroundColor: const Color.fromARGB(255, 9, 10, 15),
           ),
         );
       }
@@ -74,6 +80,17 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const BackButtonIcon(),
+          color: Colors.white,
+          onPressed: () {
+            if (widget.onBackToHome != null) {
+              widget.onBackToHome!();
+            } else {
+              Navigator.of(context).pop();
+            }
+          },
+        ),
         title: Text('Your QR Code'),
         backgroundColor: AppTheme.primaryPurple,
       ),
@@ -90,7 +107,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: AppTheme.primaryPurple,
+                      color: const Color.fromARGB(255, 0, 0, 0),
                     ),
                   ),
                   SizedBox(height: 16),
@@ -109,57 +126,24 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                           : 'https://chatterqr.app/u/' + userId,
                       version: QrVersions.auto,
                       size: 200.0,
-                      foregroundColor: AppTheme.primaryPurple,
+                      foregroundColor: const Color.fromARGB(255, 7, 7, 8),
                     ),
                   ),
                   SizedBox(height: 16),
-
-                  Text(
-                    userId.isEmpty
-                        ? 'User: ...'
-                        : 'URL: https://chatterqr.app/u/$userId',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                      fontFamily: 'monospace',
-                    ),
-                  ),
                 ],
               ),
             ),
             SizedBox(height: 32),
 
-            if (!isWaitingForConnection) ...[
-              CustomButton(
-                text: 'Start Waiting for Connection',
-                icon: Icons.wifi_tethering,
-                onPressed: startWaitingForConnection,
-              ),
-            ] else ...[
-              LoadingWidget(message: 'Waiting for connection...'),
-              SizedBox(height: 16),
-              CustomButton(
-                text: 'Stop Waiting',
-                backgroundColor: Colors.red,
-                onPressed: () {
-                  setState(() {
-                    isWaitingForConnection = false;
-                  });
-                },
-              ),
-            ],
-
-            SizedBox(height: 16),
-            // With UID-based QR, there's no need to "regenerate".
-            // Keep a placeholder action to refresh the UID if needed.
+            // Single Scan button that navigates to the QR scanner
             CustomButton(
-              text: 'Refresh',
-              backgroundColor: AppTheme.lightPurple,
-              onPressed: () async {
-                await _loadUserId();
-                setState(() {
-                  isWaitingForConnection = false;
-                });
+              text: 'Scan QR Code',
+              icon: Icons.qr_code_scanner,
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => QRScannerScreen()),
+                );
               },
             ),
           ],

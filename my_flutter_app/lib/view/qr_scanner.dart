@@ -3,11 +3,21 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../theme.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'dart:convert';
+import 'dart:async';
 import '../services/chat_service.dart';
+import '../services/realtime_chat_service.dart';
+import '../services/invite_service.dart';
+import '../services/notification_service.dart';
 import 'chat_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class QRScannerScreen extends StatefulWidget {
+  final bool showAppBar;
+  final VoidCallback? onBackToHome;
+  const QRScannerScreen({Key? key, this.showAppBar = true, this.onBackToHome})
+    : super(key: key);
+
   @override
   _QRScannerScreenState createState() => _QRScannerScreenState();
 }
@@ -16,6 +26,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   MobileScannerController cameraController = MobileScannerController();
   String scannedData = '';
   bool isScanned = false;
+  bool isTorchOn = false;
 
   @override
   void dispose() {
@@ -42,7 +53,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text(
-            'QR Code Scanned',
+            'Choose Chat Type',
             style: TextStyle(color: AppTheme.primaryPurple),
           ),
           content: Column(
@@ -50,28 +61,28 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             children: [
               Icon(Icons.qr_code_2, size: 48, color: AppTheme.primaryPurple),
               SizedBox(height: 16),
-              Text(
-                'Scanned QR:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8),
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.accentPurple,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  scannedData,
-                  style: TextStyle(fontFamily: 'monospace', fontSize: 14),
-                ),
-              ),
+              Text('Select chat type for this session:'),
               SizedBox(height: 16),
-              Text('Do you want to start chatting?'),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  startChat(isSaved: false);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryPurple,
+                ),
+                child: Text('Instant Chat'),
+              ),
               SizedBox(height: 8),
-              Text(
-                'After the chat, you can choose to save it to history.',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  startChat(isSaved: true);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryPurple,
+                ),
+                child: Text('Saved Chat'),
               ),
             ],
           ),
@@ -86,23 +97,13 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               },
               child: Text('Cancel'),
             ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                startChat();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryPurple,
-              ),
-              child: Text('Start Chat'),
-            ),
           ],
         );
       },
     );
   }
 
-  void startChat() async {
+  void startChat({required bool isSaved}) async {
     // Expect a URL like https://chatterqr.app/u/<uid>
     final uri = Uri.tryParse(scannedData);
     if (uri == null ||
@@ -126,6 +127,26 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     }
     final myUid = auth.currentUser!.uid;
 
+    // Try load local display name first, fallback to Firestore user doc
+    String myName = 'Me';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final local = prefs.getString('displayName');
+      if (local != null && local.trim().isNotEmpty) {
+        myName = local.trim();
+      } else {
+        final snap = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(myUid)
+            .get();
+        if (snap.exists) {
+          final data = snap.data();
+          final n = (data?['name'] as String?)?.trim();
+          if (n != null && n.isNotEmpty) myName = n;
+        }
+      }
+    } catch (_) {}
+
     // Fetch other user's display name from Firestore 'users'
     String otherName = 'Friend';
     try {
@@ -146,28 +167,106 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     final raw = '$a|$b';
     final sessionId = base64Url.encode(utf8.encode(raw));
 
+    // Create the session entry and then send an invite to the other user.
+
+    // Ensure both users are added to session participants in Firestore
+    await RealtimeChatService.createOrJoinSession(
+      sessionId,
+      peerName: otherName,
+      otherUid: otherUid,
+      isSaved: isSaved,
+    );
+
     await ChatService.startNewChatSession(
       sessionId,
       peerId: otherUid,
       peerName: otherName,
+      isSaved: isSaved,
     );
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ChatScreen(
-          sessionId: sessionId,
-          isHost: false,
-          peerName: otherName,
-        ),
-      ),
+    // Send invite document so the other user will get a real-time popup
+    await InviteService.sendInvite(
+      sessionId: sessionId,
+      toUid: otherUid,
+      toName: otherName,
+      fromUid: myUid,
+      fromName: myName,
+      isSaved: isSaved,
     );
+
+    // Create notification for the invited user
+    await NotificationService.createChatInviteNotification(
+      toUid: otherUid,
+      fromUid: myUid,
+      fromName: myName,
+      sessionId: sessionId,
+    );
+    // Listen for invite status changes. If accepted -> open chat. If rejected -> notify.
+    late StreamSubscription sub;
+
+    sub = InviteService.listenToInvite(sessionId).listen((snap) async {
+      if (!snap.exists) return;
+      final data = snap.data() as Map<String, dynamic>?;
+      if (data == null) return;
+      final status = (data['status'] as String?) ?? 'pending';
+      if (status == 'accepted') {
+        // Other user accepted — navigate to chat
+        try {
+          await sub.cancel();
+        } catch (_) {}
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ChatScreen(
+              sessionId: sessionId,
+              isHost: true,
+              peerName: otherName,
+            ),
+          ),
+        );
+      } else if (status == 'rejected') {
+        try {
+          await sub.cancel();
+        } catch (_) {}
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Invite was rejected')));
+        setState(() {
+          isScanned = false;
+        });
+        cameraController.start();
+      }
+    });
+
+    // Do not show a blocking "waiting" dialog for the inviter.
+    // Instead, show a lightweight SnackBar and resume scanning. The recipient
+    // will receive the real-time alert/notification via NotificationService.
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Invite sent to $otherName'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+    setState(() {
+      isScanned = false;
+    });
+    cameraController.start();
   }
 
   void _showInvalidQR() {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Invalid QR code')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Invalid QR code'),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
     setState(() {
       isScanned = false;
     });
@@ -177,73 +276,105 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Scan QR Code'),
-        backgroundColor: AppTheme.primaryPurple,
-        actions: [
-          IconButton(
-            onPressed: () => cameraController.toggleTorch(),
-            icon: const Icon(Icons.flash_on),
-          ),
-          IconButton(
-            onPressed: () => cameraController.switchCamera(),
-            icon: const Icon(Icons.switch_camera),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            flex: 4,
-            child: Stack(
-              children: [
-                MobileScanner(controller: cameraController, onDetect: onDetect),
-                // Custom overlay
-                Container(
-                  decoration: ShapeDecoration(
-                    shape: QrScannerOverlayShape(
-                      borderColor: AppTheme.primaryPurple,
-                      borderRadius: 10,
-                      borderLength: 30,
-                      borderWidth: 10,
-                      cutOutSize: 250,
-                    ),
-                  ),
+      appBar: widget.showAppBar
+          ? AppBar(
+              leading: IconButton(
+                icon: const BackButtonIcon(),
+                color: Colors.white,
+                onPressed: () {
+                  if (widget.onBackToHome != null) {
+                    widget.onBackToHome!();
+                  } else {
+                    Navigator.of(context).pop();
+                  }
+                },
+              ),
+              title: Text('Scan QR Code'),
+              backgroundColor: AppTheme.primaryPurple,
+              actions: [
+                // Torch button using local state (some MobileScannerController versions
+                // don't expose a torch state notifier)
+                IconButton(
+                  tooltip: isTorchOn ? 'Turn off light' : 'Turn on light',
+                  onPressed: () {
+                    cameraController.toggleTorch();
+                    setState(() {
+                      isTorchOn = !isTorchOn;
+                    });
+                  },
+                  icon: Icon(isTorchOn ? Icons.flash_off : Icons.flash_on),
+                ),
+                // Camera switch
+                IconButton(
+                  onPressed: () => cameraController.switchCamera(),
+                  icon: const Icon(Icons.flip_camera_android),
+                  tooltip: 'Switch camera',
                 ),
               ],
-            ),
-          ),
-          Expanded(
-            flex: 1,
-            child: Container(
-              padding: EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+            )
+          : null,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              flex: 4,
+              child: Stack(
                 children: [
-                  Icon(
-                    Icons.qr_code_scanner,
-                    size: 48,
-                    color: AppTheme.primaryPurple,
+                  MobileScanner(
+                    controller: cameraController,
+                    onDetect: onDetect,
                   ),
-                  SizedBox(height: 16),
-                  Text(
-                    'Point your camera at a QR code',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: AppTheme.primaryPurple,
-                      fontWeight: FontWeight.w500,
+                  // Custom overlay
+                  Container(
+                    decoration: ShapeDecoration(
+                      shape: QrScannerOverlayShape(
+                        borderColor: AppTheme.primaryPurple,
+                        borderRadius: 10,
+                        borderLength: 30,
+                        borderWidth: 10,
+                        cutOutSize: 250,
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Make sure the QR code is clearly visible',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+            Expanded(
+              flex: 1,
+              child: SingleChildScrollView(
+                physics: AlwaysScrollableScrollPhysics(),
+                child: Container(
+                  padding: EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.qr_code_scanner,
+                        size: 48,
+                        color: AppTheme.primaryPurple,
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'Point your camera at a QR code',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: AppTheme.primaryPurple,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Make sure the QR code is clearly visible',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

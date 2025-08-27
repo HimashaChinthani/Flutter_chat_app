@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../theme.dart';
 import '../services/realtime_chat_service.dart';
 import '../models/chat_message.dart';
+// import '../models/chat_session.dart';
+import '../services/chat_service.dart';
+import 'chat_history.dart';
+import 'welcome_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   final String sessionId;
@@ -26,6 +33,9 @@ class _ChatScreenState extends State<ChatScreen> {
   bool isConnected = true;
   bool isLoading = true;
   String? currentUserId;
+  // Listener for session changes (ended/deleted)
+  StreamSubscription<DocumentSnapshot>? _sessionSub;
+  bool _isShowingExit = false;
 
   @override
   void initState() {
@@ -33,30 +43,60 @@ class _ChatScreenState extends State<ChatScreen> {
     _initializeChat();
   }
 
+  // ...existing code...
+
   Future<void> _initializeChat() async {
     try {
       // Ensure user is authenticated
       if (FirebaseAuth.instance.currentUser == null) {
         await FirebaseAuth.instance.signInAnonymously();
       }
-      
+
       currentUserId = FirebaseAuth.instance.currentUser?.uid;
-      
+
       // Create or join the chat session
       await RealtimeChatService.createOrJoinSession(
         widget.sessionId,
         peerName: widget.peerName,
       );
 
+      // Mark unread messages as read for this user when opening the chat
+      try {
+        await RealtimeChatService.markSessionMessagesRead(widget.sessionId);
+      } catch (_) {}
+
       setState(() {
         isLoading = false;
+      });
+
+      // Start listening for session changes so both users react when session ends or is deleted
+      _sessionSub = RealtimeChatService.sessionStream(widget.sessionId).listen((
+        doc,
+      ) {
+        if (!doc.exists) {
+          // session deleted -> navigate to chat history
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => ChatHistoryScreen()),
+            );
+          }
+          return;
+        }
+
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data != null && data['isActive'] == false) {
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => ChatHistoryScreen()),
+            );
+          }
+        }
       });
 
       // Auto-scroll to bottom when new messages arrive
       Future.delayed(Duration(milliseconds: 500), () {
         _scrollToBottom();
       });
-
     } catch (e) {
       setState(() {
         isLoading = false;
@@ -77,7 +117,7 @@ class _ChatScreenState extends State<ChatScreen> {
         sessionId: widget.sessionId,
         text: messageText,
       );
-      
+
       // Auto-scroll to bottom after sending
       Future.delayed(Duration(milliseconds: 100), () {
         _scrollToBottom();
@@ -110,114 +150,128 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  void _showExitDialog() {
-    showDialog(
+  Future<void> _showExitDialog() async {
+    if (_isShowingExit || !mounted) return;
+    _isShowingExit = true;
+
+    // Get session info to check isSaved
+    final session = await ChatService.getOrCreateSession(widget.sessionId);
+    await showDialog(
       context: context,
+      barrierDismissible: true,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.exit_to_app, color: AppTheme.primaryPurple),
-              SizedBox(width: 8),
-              Text('End Chat Session'),
-            ],
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Do you want to save this chat to history?',
-                style: TextStyle(fontSize: 16),
-              ),
-              SizedBox(height: 12),
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.accentPurple,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: AppTheme.primaryPurple,
-                      size: 20,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [
+                        Color.fromARGB(255, 1, 187, 26),
+                        Color.fromARGB(255, 25, 132, 8),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Chat messages are automatically saved in the cloud.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.darkPurple,
+                  ),
+                  child: Center(
+                    child: Icon(
+                      Icons.info_outline,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                  ),
+                ),
+                SizedBox(height: 16),
+                Text(
+                  'End This Chat?',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  session.isSaved
+                      ? 'Are you sure you want to end this conversation? Your chat history will be saved.'
+                      : 'Are you sure you want to end this instant chat? This chat will be deleted for both users.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 18),
+                Column(
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          Navigator.of(context).pop();
+                          if (!mounted) return;
+                          if (session.isSaved) {
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(
+                                builder: (_) => ChatHistoryScreen(),
+                              ),
+                            );
+                          } else {
+                            await _exitWithoutSaving();
+                          }
+                        },
+                        icon: Icon(
+                          session.isSaved
+                              ? Icons.check_circle_outline
+                              : Icons.delete_outline,
+                          color: session.isSaved ? Colors.black87 : Colors.red,
+                        ),
+                        label: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12.0),
+                          child: Text(
+                            session.isSaved
+                                ? 'Keep & Exit Chat'
+                                : 'Delete & Exit Chat',
+                            style: TextStyle(
+                              color: session.isSaved
+                                  ? Colors.black87
+                                  : Colors.red,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          side: BorderSide(color: Colors.grey.shade300),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _exitWithoutSaving();
-              },
-              child: Text(
-                'Delete & Exit',
-                style: TextStyle(color: Colors.red),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _saveAndExit();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryPurple,
-              ),
-              child: Text('Keep & Exit'),
-            ),
-          ],
         );
       },
     );
+
+    // allow subsequent dialogs again
+    _isShowingExit = false;
   }
 
-  Future<void> _saveAndExit() async {
-    try {
-      await RealtimeChatService.endSession(widget.sessionId);
-      
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Chat session ended and saved!'),
-            ],
-          ),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
-      );
-    } catch (e) {
-      _showError('Error ending session: $e');
-    }
-    
-    Navigator.of(context).popUntil((route) => route.isFirst);
-  }
+  // NOTE: Previously this closed the session when 'Continue' was pressed.
+  // We removed that behavior: Continue now simply dismisses the dialog.
 
   Future<void> _exitWithoutSaving() async {
     try {
       await RealtimeChatService.deleteSession(widget.sessionId);
-      
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -225,7 +279,7 @@ class _ChatScreenState extends State<ChatScreen> {
             children: [
               Icon(Icons.delete, color: Colors.white),
               SizedBox(width: 8),
-              Text('Chat session deleted'),
+              Text('Chat session deleted for both users'),
             ],
           ),
           backgroundColor: Colors.orange,
@@ -235,8 +289,28 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       _showError('Error deleting session: $e');
     }
-    
-    Navigator.of(context).popUntil((route) => route.isFirst);
+
+    // Navigate to chat history after deletion (clear stack up to first route then push)
+    // Ensure the app returns to WelcomeScreen as base, then open ChatHistory
+    if (!mounted) return;
+
+    // Give the UI a short moment to settle after dialog pop, then navigate.
+    await Future.delayed(Duration(milliseconds: 250));
+
+    if (!mounted) return;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // Replace the entire stack with WelcomeScreen as base
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => WelcomeScreen()),
+        (route) => false,
+      );
+
+      // Push ChatHistory so user lands on chat history and can go back to Welcome
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => ChatHistoryScreen()));
+    });
   }
 
   @override
@@ -244,6 +318,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (isLoading) {
       return Scaffold(
         appBar: AppBar(
+          leading: BackButton(color: Colors.white),
           title: Text('Loading Chat...'),
           backgroundColor: AppTheme.primaryPurple,
         ),
@@ -260,201 +335,342 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.peerName != null && widget.peerName!.isNotEmpty
-                  ? 'Chat with ${widget.peerName}'
-                  : 'Chat Session',
+    // Normal loaded UI wrapped with a WillPopScope to intercept system back
+    return WillPopScope(
+      onWillPop: () async {
+        final session = await ChatService.getOrCreateSession(widget.sessionId);
+        if (session.isSaved) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => ChatHistoryScreen()),
+          );
+        } else {
+          await _exitWithoutSaving();
+        }
+        return false;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          toolbarHeight: 92,
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          automaticallyImplyLeading: false,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () async {
+              final session = await ChatService.getOrCreateSession(
+                widget.sessionId,
+              );
+              if (session.isSaved) {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => ChatHistoryScreen()),
+                );
+              } else {
+                await _exitWithoutSaving();
+              }
+            },
+          ),
+          flexibleSpace: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color.fromRGBO(156, 39, 176, 1.0), Color(0xFF1E88E5)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(18)),
             ),
-            Text(
-              widget.sessionId,
-              style: TextStyle(fontSize: 12, color: Colors.white70),
+            padding: EdgeInsets.only(left: 16, right: 12, top: 28),
+            child: Row(
+              children: [
+                // Removed duplicate arrow back button
+                SizedBox(width: 8),
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: Colors.white24,
+                  child: Icon(Icons.chat_bubble_outline, color: Colors.white),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        (widget.peerName != null && widget.peerName!.isNotEmpty)
+                            ? widget.peerName!
+                            : 'AI Assistant',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Online • Ready to help',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                // End Chat button removed for both users
+              ],
+            ),
+          ),
+        ),
+        backgroundColor: Color(0xFFF6F7FB),
+        body: Column(
+          children: [
+            if (!isConnected)
+              AnimatedContainer(
+                duration: Duration(milliseconds: 300),
+                width: double.infinity,
+                padding: EdgeInsets.symmetric(vertical: 8),
+                color: Colors.red,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.cloud_off, color: Colors.white, size: 16),
+                    SizedBox(width: 8),
+                    Text(
+                      'Connection Error',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            Expanded(
+              child: StreamBuilder<List<ChatMessage>>(
+                stream: RealtimeChatService.getMessagesStream(widget.sessionId),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.error, size: 64, color: Colors.red),
+                          SizedBox(height: 16),
+                          Text('Error loading messages'),
+                          Text(
+                            snapshot.error.toString(),
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                          SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: () => setState(() {}),
+                            child: Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  if (!snapshot.hasData) {
+                    return Center(
+                      child: CircularProgressIndicator(
+                        color: AppTheme.primaryPurple,
+                      ),
+                    );
+                  }
+
+                  final messages = snapshot.data!;
+
+                  if (messages.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.chat_bubble_outline,
+                            size: 64,
+                            color: Colors.grey,
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            'No messages yet',
+                            style: TextStyle(fontSize: 18, color: Colors.grey),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Start the conversation by sending a message!',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _scrollToBottom();
+                  });
+
+                  return ListView.builder(
+                    controller: scrollController,
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final message = messages[index];
+                      return MessageBubble(message: message);
+                    },
+                  );
+                },
+              ),
+            ),
+
+            Container(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 20),
+              color: Colors.transparent,
+              child: SafeArea(
+                top: false,
+                child: Stack(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(30),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black12,
+                                  blurRadius: 6,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: messageController,
+                                    decoration: InputDecoration(
+                                      hintText: 'Type your message...',
+                                      border: InputBorder.none,
+                                    ),
+                                    onSubmitted: (_) => _sendMessage(),
+                                    onChanged: (_) => setState(() {}),
+                                    maxLines: null,
+                                  ),
+                                ),
+                                if (messageController.text.isNotEmpty)
+                                  IconButton(
+                                    onPressed: () {
+                                      messageController.clear();
+                                      setState(() {});
+                                    },
+                                    icon: Icon(
+                                      Icons.clear,
+                                      size: 20,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        GestureDetector(
+                          onTap: messageController.text.trim().isNotEmpty
+                              ? _sendMessage
+                              : null,
+                          child: Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Color.fromRGBO(156, 39, 176, 1.0),
+                                  Color(0xFF1E88E5),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black12,
+                                  blurRadius: 6,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Icon(Icons.send, color: Colors.white),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    Positioned(
+                      right: 0,
+                      bottom: 56,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: Colors.black,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  'b',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Made in Bolt',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
-        backgroundColor: AppTheme.primaryPurple,
-        actions: [
-          IconButton(
-            onPressed: _showExitDialog,
-            icon: Icon(Icons.exit_to_app),
-            tooltip: 'End Chat',
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Connection Status
-          AnimatedContainer(
-            duration: Duration(milliseconds: 300),
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(vertical: 8),
-            color: isConnected ? Colors.green : Colors.red,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  isConnected ? Icons.cloud_done : Icons.cloud_off,
-                  color: Colors.white,
-                  size: 16,
-                ),
-                SizedBox(width: 8),
-                Text(
-                  isConnected ? 'Connected to Cloud' : 'Connection Error',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Messages List
-          Expanded(
-            child: StreamBuilder<List<ChatMessage>>(
-              stream: RealtimeChatService.getMessagesStream(widget.sessionId),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.error, size: 64, color: Colors.red),
-                        SizedBox(height: 16),
-                        Text('Error loading messages'),
-                        Text(snapshot.error.toString(), 
-                             style: TextStyle(fontSize: 12, color: Colors.grey)),
-                        SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () => setState(() {}),
-                          child: Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                if (!snapshot.hasData) {
-                  return Center(
-                    child: CircularProgressIndicator(color: AppTheme.primaryPurple),
-                  );
-                }
-
-                final messages = snapshot.data!;
-                
-                if (messages.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.chat_bubble_outline, 
-                             size: 64, color: Colors.grey),
-                        SizedBox(height: 16),
-                        Text(
-                          'No messages yet',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Start the conversation by sending a message!',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                // Auto-scroll to bottom when new messages arrive
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _scrollToBottom();
-                });
-
-                return ListView.builder(
-                  controller: scrollController,
-                  padding: EdgeInsets.all(16),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index];
-                    return MessageBubble(message: message);
-                  },
-                );
-              },
-            ),
-          ),
-
-          // Message Input
-          Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 4,
-                  offset: Offset(0, -2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: messageController,
-                    decoration: InputDecoration(
-                      hintText: 'Type a message...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(25),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      suffixIcon: messageController.text.isNotEmpty
-                          ? IconButton(
-                              onPressed: () {
-                                messageController.clear();
-                                setState(() {});
-                              },
-                              icon: Icon(Icons.clear, size: 20),
-                            )
-                          : null,
-                    ),
-                    onSubmitted: (_) => _sendMessage(),
-                    onChanged: (_) => setState(() {}),
-                    maxLines: null,
-                  ),
-                ),
-                SizedBox(width: 8),
-                FloatingActionButton(
-                  onPressed: messageController.text.trim().isNotEmpty 
-                      ? _sendMessage 
-                      : null,
-                  backgroundColor: messageController.text.trim().isNotEmpty
-                      ? AppTheme.primaryPurple
-                      : Colors.grey,
-                  mini: true,
-                  child: Icon(Icons.send, color: Colors.white),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
 
   @override
   void dispose() {
+    _sessionSub?.cancel();
     messageController.dispose();
     scrollController.dispose();
     super.dispose();
@@ -477,7 +693,9 @@ class MessageBubble extends StatelessWidget {
           maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
         decoration: BoxDecoration(
-          color: message.isMe ? AppTheme.primaryPurple : Colors.grey[200],
+          color: message.isMe
+              ? const Color.fromARGB(255, 9, 104, 228)
+              : Color.fromARGB(255, 229, 230, 234),
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(18),
             topRight: Radius.circular(18),
@@ -506,7 +724,9 @@ class MessageBubble extends StatelessWidget {
             Text(
               '${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}',
               style: TextStyle(
-                color: message.isMe ? Colors.white70 : Colors.grey[600],
+                color: message.isMe
+                    ? Colors.white70
+                    : const Color.fromARGB(255, 0, 0, 0),
                 fontSize: 12,
               ),
             ),

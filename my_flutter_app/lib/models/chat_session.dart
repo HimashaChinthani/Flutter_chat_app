@@ -6,6 +6,7 @@ class ChatSession {
   final String lastMessage;
   final String? peerId;
   final String? peerName;
+  final bool isSaved;
 
   ChatSession({
     required this.id,
@@ -15,6 +16,7 @@ class ChatSession {
     required this.lastMessage,
     this.peerId,
     this.peerName,
+    this.isSaved = false,
   });
 
   // Convert to Map for SQLite
@@ -27,6 +29,7 @@ class ChatSession {
       'lastMessage': lastMessage,
       'peerId': peerId,
       'peerName': peerName,
+      'isSaved': isSaved ? 1 : 0,
     };
   }
 
@@ -40,6 +43,9 @@ class ChatSession {
       lastMessage: map['lastMessage'],
       peerId: map.containsKey('peerId') ? map['peerId'] as String? : null,
       peerName: map.containsKey('peerName') ? map['peerName'] as String? : null,
+      isSaved: map.containsKey('isSaved')
+          ? (map['isSaved'] == 1 || map['isSaved'] == true)
+          : false,
     );
   }
 
@@ -52,6 +58,7 @@ class ChatSession {
     String? lastMessage,
     String? peerId,
     String? peerName,
+    bool? isSaved,
   }) {
     return ChatSession(
       id: id ?? this.id,
@@ -61,6 +68,7 @@ class ChatSession {
       lastMessage: lastMessage ?? this.lastMessage,
       peerId: peerId ?? this.peerId,
       peerName: peerName ?? this.peerName,
+      isSaved: isSaved ?? this.isSaved,
     );
   }
 }

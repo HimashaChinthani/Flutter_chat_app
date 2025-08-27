@@ -6,6 +6,7 @@ import 'firebase_options.dart';
 import 'theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'view/welcome_screen.dart';
+import 'view/notifications_screen.dart';
 import 'services/crud_services.dart';
 
 void main() async {
@@ -106,6 +107,7 @@ class ChatApp extends StatelessWidget {
       theme: AppTheme.theme,
       home: WelcomeScreen(),
       debugShowCheckedModeBanner: false,
+      routes: {'/notifications': (context) => NotificationsScreen()},
     );
   }
 }

@@ -69,7 +69,7 @@ class _FirebaseTestScreenState extends State<FirebaseTestScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Firebase Test')),
+      appBar: AppBar(leading: BackButton(), title: const Text('Firebase Test')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
